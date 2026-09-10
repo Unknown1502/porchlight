@@ -40,7 +40,16 @@ COPY src/    ./src/
 COPY packs/  ./packs/
 COPY policies/ ./policies/
 COPY corpus/ ./corpus/
-COPY pyproject.toml README.md LICENSE ./
+# eval/ carries labels.json, which /replay reads to decide which reports to hold
+# back so a campaign fires live rather than being on screen at page load. Without
+# it the hold-back silently degrades to "load everything" and the demo opens on
+# the answer — a failure with no error message, which is the worst kind.
+COPY eval/  ./eval/
+COPY tasks.py pyproject.toml README.md LICENSE ./
+
+# The corpus is generated, not committed (corpus/seed/*.json is gitignored), so
+# build it into the image. A container without it answers /replay with a 404.
+RUN python corpus/generate.py --out corpus/seed --count 60 --campaigns 1
 
 # Non-root, but able to write the local community store when AgentCore Memory
 # is not configured (REPO_ROOT/.porchlight_store.json).

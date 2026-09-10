@@ -1,0 +1,14 @@
+# Keep build context small and free of local state.
+.git
+.venv*
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+*.egg-info
+porchlight.db
+porchlight.db-*
+.porchlight_store.json
+.env
+deploy/evidence
+eval/out

@@ -278,7 +278,7 @@ withdraw.
 
 | Component | Status | Evidence |
 |---|---|---|
-| Container image | **Verified** | `linux/arm64`, non-root, port 8080; built and run locally, `/ping` → `Healthy`, `/invocations` → full case file, `/` → dashboard |
+| Container image | **Verified** | `linux/arm64`, non-root, port 8080. Built and run: `/ping` → `Healthy`, `/healthz` shows the worker running, `/replay` holds back 6 reports and reports 0 campaigns, `/invocations` returns a triaged case, `/` serves the inbox |
 | AgentCore Runtime contract | **Verified** | `GET /ping` + `POST /invocations` served and tested (`tests/test_server.py`) |
 | AgentCore Policy engine | **Verified** | Engine created in a real account and reached `ACTIVE`; `deploy/setup_policy.sh` is idempotent against it |
 | Cedar accepted by AgentCore | **Verified** | `CreatePolicy` accepts `definition.cedar.statement` with `enforcementMode` `ACTIVE`/`LOG_ONLY` |
