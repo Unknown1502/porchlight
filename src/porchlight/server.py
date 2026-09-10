@@ -206,16 +206,42 @@ def post_replay(
 
 
 def _campaign_tail(labels_path: Path) -> set[str]:
-    """Members to withhold so each planted campaign sits one report below threshold."""
+    """Members to withhold so that *no* crew starts above the campaign threshold.
+
+    Trims every crew in the corpus's ground truth to one report below threshold,
+    not just the labelled headline campaign. The corpus deliberately contains a
+    second crew as a near-miss distractor, and that crew is a real one — it
+    clears the bar honestly. Holding back only the headline left the board
+    opening with a campaign and a waiting decision already on it, which turns
+    "here is the one thing that needs you" into "here are two, one of which was
+    already there".
+
+    Note what this is *not*: the reports are withheld from the queue, not marked
+    or special-cased. Everything held back is a normal report that the normal
+    pipeline has never seen, so the campaign that forms when one arrives is
+    found rather than replayed.
+    """
     try:
         labels = json.loads(labels_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         log.warning("no usable %s; loading the whole corpus", labels_path)
         return set()
+
     keep = max(settings().campaign_min_reports - 1, 0)
     held: set[str] = set()
-    for members in (labels.get("campaigns") or {}).values():
-        held |= {str(m) for m in list(members)[keep:]}
+
+    by_crew: dict[str, list[str]] = {}
+    for report_id, crew in (labels.get("crews") or {}).items():
+        if crew and crew != "none":
+            by_crew.setdefault(crew, []).append(str(report_id))
+    for members in by_crew.values():
+        if len(members) > keep:
+            held |= set(sorted(members)[keep:])
+
+    # Fall back to the labelled campaigns if crew truth is absent (older corpus).
+    if not by_crew:
+        for members in (labels.get("campaigns") or {}).values():
+            held |= {str(m) for m in list(members)[keep:]}
     return held
 
 

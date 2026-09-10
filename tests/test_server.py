@@ -429,3 +429,37 @@ def test_decision_state_transitions_are_recorded(client):
     client.post(f"/decisions/{did}/approve", headers=WHO)
     assert db.get_decision(did).state is DecisionState.APPROVED
     assert db.get_decision(did).resolved_by == "Priya Nair"
+
+
+def test_the_board_opens_with_no_campaign_and_no_decision(client):
+    """Every crew is held one short, not just the headline one.
+
+    The corpus contains a second, near-miss crew that clears the bar honestly.
+    Holding back only the labelled campaign left the demo opening with a
+    campaign and a waiting decision already present, which turns "here is the
+    one thing that needs you" into "here are two, one of which was already
+    there".
+    """
+    client.post("/reset")
+    replay = client.post("/replay", json={"directory": "corpus/seed"}).json()
+    inbox = client.get("/inbox", headers=WHO).json()
+
+    assert replay["held_back"], "something must be held back"
+    assert inbox["campaigns"] == [], "no campaign may be visible before a report arrives"
+    assert inbox["decisions"] == [], "and nothing may be waiting"
+    assert inbox["handled_while_away"]["processed"] > 30, "but the work is genuinely done"
+
+
+def test_what_is_delivered_is_the_edited_text_not_the_original(client):
+    """Editing then approving must send the new wording, not the draft."""
+    decision = _campaign_of_three(client)
+    did = decision["decision_id"]
+    edited = decision["body"] + " Ring the centre before you pay anyone."
+
+    client.patch(f"/decisions/{did}", json={"body": edited}, headers=WHO)
+    result = client.post(f"/decisions/{did}/approve", headers=WHO).json()
+    assert result["allowed"] is True
+
+    sent = client.get("/outbox").json()["messages"][0]["body"]
+    assert sent.endswith("Ring the centre before you pay anyone.")
+    assert message_digest(sent) == message_digest(edited)
