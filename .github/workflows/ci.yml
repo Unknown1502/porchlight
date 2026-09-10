@@ -1,0 +1,89 @@
+name: ci
+
+# Everything here runs in offline mode: deterministic node implementations, no
+# AWS account, no credits burned. That is what makes the eval gate viable as a
+# required check — it can run on every push without costing anything.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PORCHLIGHT_OFFLINE: "1"
+  PYTHONPATH: src
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the floor declared in pyproject; 3.12 is what the deploy image
+        # runs. Both, because the floor is the one that silently rots.
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check src corpus eval tests
+
+      - name: Tests
+        run: pytest -q
+
+      - name: Red-team suite
+        # Called out separately from the rest of the suite so a failure here is
+        # legible in the checks list. The claim it defends is the one the whole
+        # submission rests on: no hostile report produces a side effect.
+        run: pytest -q tests/injection
+
+      - name: Regenerate corpus
+        # Fixed seed, so this is reproducible and eval/labels.json is derived
+        # from the same run that produced the reports it scores.
+        run: python corpus/generate.py --out corpus/seed --count 60 --campaigns 1
+
+      - name: Eval gate
+        # Exits non-zero below attribution F1 0.80 or link precision 0.90, so a
+        # clustering regression breaks the build instead of the demo. There is
+        # deliberately no gate on held-out injection recall: the signature list
+        # is not the control, and a floor on it would invite tuning the corpus
+        # instead of fixing the system.
+        run: python eval/run_eval.py --corpus corpus/seed --labels eval/labels.json
+
+      - name: Deploy scripts are safe to run
+        # Both scripts default to a dry run and must exit 0 without creating
+        # anything. A deploy script that only works when it is allowed to make
+        # AWS resources cannot be checked in CI, and so drifts.
+        run: |
+          bash -n deploy/deploy_runtime.sh
+          bash -n deploy/setup_policy.sh
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-py${{ matrix.python-version }}
+          path: eval/out/results.json
+          if-no-files-found: warn

@@ -1,0 +1,82 @@
+# Jurisdiction pack: the LOCAL RESPONSE ADAPTER.
+#
+# Everything a place changes lives here - where you report, who the partners
+# are, which scripts and money rails are common locally, which bodies get
+# impersonated, what a plausible phone number looks like, and the currency.
+# The intelligence core (indicators, correlation, evidence, policy) reads this
+# file and knows nothing about any country.
+#
+# Adding a jurisdiction is adding one of these files. It is not a code change.
+name: in
+display_name: India
+currency: INR
+notes: 'Verify every endpoint and any timing claim against the current official guidance before it goes
+  into a flyer or a video. Nothing in this pack should be stated as a legal guarantee.
+
+  '
+reporting:
+  portal_name: National Cyber Crime Reporting Portal (NCRP)
+  portal_url: https://cybercrime.gov.in
+  helpline: '1930'
+  local_helpline: your coalition desk
+  guidance: 'Report as soon as possible. Faster reporting improves the chance that the receiving account
+    can be frozen before funds are layered onward.
+
+    '
+  recovery_steps:
+  - Call 1930 now and state that money has just been transferred. Ask for a freeze request on the beneficiary
+    account.
+  - Call your bank's fraud line and report the transaction as fraud. Ask them to raise a hold on the beneficiary.
+  - File the complaint at cybercrime.gov.in and keep the acknowledgement number.
+  - Do not send anything further, whatever anyone on the phone tells you.
+  - Save every message, number and screenshot. Do not delete the chat.
+  - Tell one family member. The crew relies on you staying silent.
+partners:
+- name: Partner bank fraud desk
+  role: freeze and flag beneficiary identifiers
+- name: District police cyber cell
+  role: FIR and cross-report correlation
+- name: Senior citizens' association coordinator
+  role: community warning distribution
+script_library:
+- fingerprint: digital arrest video call
+  note: Impersonated police/CBI hold the resident on video and forbid contact with family.
+- fingerprint: parcel seized customs bribe
+  note: A courier parcel is claimed to contain contraband; payment demanded to release it.
+- fingerprint: kyc update account block
+  note: Bank or telecom KYC expiry used to harvest OTPs or push a transfer.
+- fingerprint: electricity bill disconnection tonight
+  note: Same-evening disconnection threat driving a UPI payment.
+money_rails:
+- upi
+- bank_transfer
+- cash
+- gold
+- courier
+- crypto
+script_patterns:
+- fingerprint: digital arrest video call
+  pattern: digital arrest|video call.*(?:police|cbi)|stay on (?:the )?(?:call|camera)
+- fingerprint: electricity bill disconnection tonight
+  pattern: electricity|power (?:will be )?disconnect|bijli
+- fingerprint: kyc update account block
+  pattern: \bkyc\b|update your (?:kyc|details) or
+rail_patterns:
+- rail: upi
+  pattern: \bupi\b|@ok\w+|@ybl|@paytm|scan (?:the )?qr
+- rail: bank_transfer
+  pattern: \bneft\b|\brtgs\b|\bimps\b
+impersonated_entities:
+- CBI
+- TRAI
+- Aadhaar
+- UIDAI
+- income tax
+currency_patterns:
+- currency: INR
+  pattern: rs\.?|inr|₹
+phone_shapes:
+- label: Indian mobile (international format)
+  pattern: ^91[6-9]\d{9}$
+- label: Indian mobile (national format)
+  pattern: ^[6-9]\d{9}$

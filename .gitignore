@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+corpus/seed/*.json
+eval/out/
+.porchlight_store.json
+.DS_Store
+
+# Audit venv — local only, never committed.
+.venv-audit/
+
+# AWS evidence captured during verification; ids are account-specific.
+deploy/evidence/

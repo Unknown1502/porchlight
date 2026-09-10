@@ -1,0 +1,83 @@
+# Jurisdiction pack: the LOCAL RESPONSE ADAPTER.
+#
+# Everything a place changes lives here - where you report, who the partners
+# are, which scripts and money rails are common locally, which bodies get
+# impersonated, what a plausible phone number looks like, and the currency.
+# The intelligence core (indicators, correlation, evidence, policy) reads this
+# file and knows nothing about any country.
+#
+# Adding a jurisdiction is adding one of these files. It is not a code change.
+name: us
+display_name: United States
+currency: USD
+notes: 'Verify every endpoint before use. Do not state statutory recovery windows in resident-facing material
+  unless they appear here verbatim.
+
+  '
+reporting:
+  portal_name: FTC ReportFraud
+  portal_url: https://reportfraud.ftc.gov
+  secondary_portal_name: FBI IC3
+  secondary_portal_url: https://www.ic3.gov
+  helpline: 877-382-4357
+  local_helpline: your coalition desk
+  guidance: 'Report as soon as possible. Faster reporting improves the chance a transfer can be recalled
+    and helps investigators link reports into one case.
+
+    '
+  recovery_steps:
+  - Call your bank or card issuer's fraud line now and report the transaction as fraud.
+  - If it was a wire, ask the bank to attempt a recall immediately.
+  - If gift cards were used, call the card issuer with the card numbers and receipts; some balances can
+    still be frozen.
+  - If a crypto ATM was used, call the operator on the machine's receipt and report it.
+  - File at reportfraud.ftc.gov and, for internet crime, at ic3.gov. Keep both reference numbers.
+  - Save every message, number and screenshot.
+  - Tell one family member.
+partners:
+- name: Partner bank fraud desk
+  role: freeze and flag beneficiary accounts
+- name: Local law enforcement financial crimes unit
+  role: case correlation and prosecution referral
+- name: Adult Protective Services liaison
+  role: welfare contact where isolation signals are present
+- name: Area Agency on Aging
+  role: community warning distribution
+script_library:
+- fingerprint: ssn suspended money laundering
+  note: Government impersonation; SSN allegedly linked to drug or laundering crimes.
+- fingerprint: bank account frozen safe account
+  note: Fake bank fraud desk moves funds to a "safe account" the crew controls.
+- fingerprint: fake tech support remote access
+  note: Pop-up leads to remote access and a handoff to a fake bank or agent.
+- fingerprint: prize lottery advance fee
+  note: Winnings released on payment of fees or taxes.
+money_rails:
+- crypto
+- bank_transfer
+- cash
+- gold
+- gift_card
+- wire
+- courier
+script_patterns:
+- fingerprint: ssn suspended money laundering
+  pattern: social security|ssn|money launder|narcotic
+- fingerprint: prize lottery advance fee
+  pattern: \blottery\b|\bprize\b|you have won
+rail_patterns:
+- rail: gift_card
+  pattern: gift card|google play code|itunes|amazon card
+- rail: wire
+  pattern: \bwire transfer\b|\bswift\b|\bwestern union\b
+impersonated_entities:
+- Social Security Administration
+- IRS
+- Medicare
+- FBI
+currency_patterns:
+- currency: USD
+  pattern: \$|\busd\b|\bdollars?\b
+phone_shapes:
+- label: North American number
+  pattern: ^1?[2-9]\d{2}[2-9]\d{6}$

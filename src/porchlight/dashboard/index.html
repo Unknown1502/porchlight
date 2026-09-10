@@ -1,0 +1,1252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Porchlight — coordinator queue</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Porchlight coordinator console.
+
+   One design rule, held everywhere: saturated colour means severity and
+   nothing else. Brand warmth lives in the porch-light glow behind the header
+   and in the logo; every button and control is bone-white or bare. So when
+   something on this screen is red, a coordinator can trust that it is red
+   because a person is hours from losing money — not because it is a heading.
+
+   Colour is never the only carrier. Every band is also a word, every policy
+   denial is also the string FORBID.
+--------------------------------------------------------------------------- */
+:root {
+  --bg:         #0a0c0f;
+  --bg-raise:   #101318;
+  --bg-sunk:    #07090b;
+  --line:       #1d232b;
+  --line-soft:  #161b21;
+  --ink:        #e9ecef;
+  --ink-dim:    #98a1ab;
+  --ink-faint:  #656e78;
+  --warm:       #f0b464;
+
+  --black-key:  #ff3b30;
+  --black-ink:  #ffd9d5;
+  --black-bg:   #2a0a0d;
+  --red-key:    #ff6f57;
+  --red-ink:    #ffb9a9;
+  --amber-key:  #f2a93b;
+  --amber-ink:  #f8d296;
+  --green-key:  #49bf86;
+  --green-ink:  #a3e2c3;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 13.5px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* The porch light itself: one warm source, top left, behind everything. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20% 40% 55% -15%;
+  background: radial-gradient(closest-side, rgba(240,180,100,.13), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+button, input, textarea, select { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--warm);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #222932; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #2c343f; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------------------------------------------------------- header ------ */
+.topbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #0e1116, #0a0c0f);
+}
+
+.brand { display: flex; align-items: center; gap: 10px; flex: none; }
+
+.lamp {
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--warm);
+  box-shadow: 0 0 0 3px rgba(240,180,100,.14), 0 0 18px 3px rgba(240,180,100,.55);
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+
+.brand .tag {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  border-left: 1px solid var(--line);
+  margin-left: 4px;
+  padding-left: 10px;
+}
+
+.counts { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+
+.count {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-raise);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.count b { font: 600 13px/1 var(--mono); color: var(--ink); }
+.count.black  { border-color: #4a1418; color: var(--black-ink); }
+.count.black b{ color: var(--black-key); }
+.count.red    { border-color: #4a231c; color: var(--red-ink); }
+.count.red b  { color: var(--red-key); }
+.count.amber  { border-color: #453317; color: var(--amber-ink); }
+.count.amber b{ color: var(--amber-key); }
+.count.green  { border-color: #173b2b; color: var(--green-ink); }
+.count.green b{ color: var(--green-key); }
+.count.zero   { opacity: .38; }
+
+.who {
+  display: flex; align-items: center; gap: 8px;
+  padding-left: 14px; margin-left: 4px;
+  border-left: 1px solid var(--line);
+  font-size: 11px; color: var(--ink-faint);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.who input {
+  width: 132px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.mode {
+  font: 600 10px/1 var(--mono);
+  letter-spacing: .1em;
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  background: var(--bg-sunk);
+}
+.mode.live { color: #0a0c0f; background: var(--warm); border-color: var(--warm); }
+
+/* ------------------------------------------------------------ layout ---- */
+.grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(430px, 1.15fr) minmax(380px, 1fr);
+  gap: 1px;
+  background: var(--line);
+  height: calc(100vh - 51px);
+}
+
+.col { display: flex; flex-direction: column; background: var(--bg); min-height: 0; }
+.col.side { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; }
+
+.panel { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+
+.panel-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  flex: none;
+}
+.panel-head h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.panel-head .note { font-size: 11px; color: var(--ink-faint); }
+.panel-head .spacer { margin-left: auto; }
+
+.scroll { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; }
+
+/* --------------------------------------------------------- composer ----- */
+.composer { flex: none; padding: 14px 16px 16px; border-bottom: 1px solid var(--line); }
+
+.composer textarea {
+  width: 100%;
+  min-height: 78px;
+  max-height: 190px;
+  resize: vertical;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 11px 12px;
+  font: 13px/1.55 var(--sans);
+  color: var(--ink);
+}
+.composer textarea::placeholder { color: #4e565f; }
+.composer textarea:focus { border-color: #34506b; outline: none; }
+
+.composer-row { display: flex; gap: 8px; margin-top: 9px; align-items: center; flex-wrap: wrap; }
+
+.composer input[type=text], .composer select {
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 12px;
+  color: var(--ink);
+}
+.composer input[type=text] { width: 108px; }
+.composer input[type=text]::placeholder { color: #4e565f; }
+
+.btn {
+  border: 1px solid var(--line);
+  background: var(--bg-raise);
+  color: var(--ink);
+  border-radius: 7px;
+  padding: 7px 13px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+.btn:hover:not(:disabled) { background: #171c23; border-color: #2b333d; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary {
+  background: #f4efe6; color: #0a0c0f; border-color: #f4efe6; font-weight: 600;
+}
+.btn.primary:hover:not(:disabled) { background: #fff; border-color: #fff; }
+.btn.ghost { background: transparent; color: var(--ink-dim); }
+.btn.ghost:hover:not(:disabled) { color: var(--ink); background: var(--bg-raise); }
+.btn .kbd { font: 10px/1 var(--mono); opacity: .55; margin-left: 6px; }
+
+.hint { margin-top: 8px; font-size: 11.5px; color: var(--ink-faint); }
+.hint b { color: var(--ink-dim); font-weight: 500; }
+
+/* ------------------------------------------------------------ queue ----- */
+.queue { list-style: none; margin: 0; padding: 0; }
+
+.row {
+  display: grid;
+  grid-template-columns: 4px 62px 1fr;
+  gap: 0 13px;
+  align-items: start;
+  padding: 12px 16px 12px 0;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border-left: none; border-right: none; border-top: none;
+  font: inherit; color: inherit;
+}
+.row:hover { background: #0e1116; }
+.row.is-open { background: #12161c; }
+
+.row .bar { align-self: stretch; border-radius: 0 3px 3px 0; margin: -12px 0; }
+.row.black .bar { background: var(--black-key); }
+.row.red   .bar { background: var(--red-key); }
+.row.amber .bar { background: var(--amber-key); }
+.row.green .bar { background: #22303a; }
+
+.clock { text-align: right; padding-top: 1px; }
+.clock .n {
+  display: block;
+  font: 600 19px/1.05 var(--mono);
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.clock .u {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 3px;
+}
+.row.black .clock .n { color: var(--black-key); }
+.row.red   .clock .n { color: var(--red-key); }
+.row.amber .clock .n { color: var(--amber-key); }
+.row.green .clock .n { color: #4a555f; }
+
+.row .body { min-width: 0; }
+
+.row .title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13.5px; font-weight: 500;
+  margin-bottom: 3px;
+}
+.row .title .txt {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.band {
+  flex: none;
+  font: 600 9.5px/1 var(--mono);
+  letter-spacing: .1em;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+.band.black { background: var(--black-bg); color: var(--black-ink); border-color: #6d1c22; }
+.band.red   { background: rgba(255,111,87,.11); color: var(--red-ink); border-color: #4d251d; }
+.band.amber { background: rgba(242,169,59,.10); color: var(--amber-ink); border-color: #48361a; }
+.band.green { background: rgba(73,191,134,.09); color: var(--green-ink); border-color: #1d3b2e; }
+
+.row .meta {
+  font-size: 12px; color: var(--ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row .sub {
+  margin-top: 4px;
+  font: 11px/1.4 var(--mono);
+  color: var(--ink-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 10px/1 var(--mono);
+  letter-spacing: .04em;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.pill.campaign { border-color: #5a4116; background: rgba(240,180,100,.10); color: #f4c483; }
+.pill.injection { border-color: #4a2130; background: rgba(214,92,140,.10); color: #e79cbb; }
+.pill.approved { border-color: #1d3b2e; background: rgba(73,191,134,.09); color: var(--green-ink); }
+
+.row .flags { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+
+.empty {
+  padding: 44px 26px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+/* -------------------------------------------------------- campaigns ---- */
+.campaign-list { padding: 12px 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+
+.campaign {
+  border: 1px solid #33270f;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(240,180,100,.055), rgba(240,180,100,.015));
+  padding: 14px 15px;
+}
+.campaign.new { animation: fire .9s ease-out; }
+@keyframes fire {
+  0%   { border-color: var(--warm); box-shadow: 0 0 0 0 rgba(240,180,100,.5); }
+  100% { border-color: #33270f; box-shadow: 0 0 0 14px rgba(240,180,100,0); }
+}
+
+.campaign h3 {
+  margin: 0 0 3px;
+  font-size: 14px; font-weight: 600;
+  color: #f7d5a4;
+}
+.campaign .cid {
+  font: 10.5px/1 var(--mono);
+  color: var(--ink-faint);
+  letter-spacing: .04em;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin: 13px 0 12px;
+  background: #2a2213;
+  border: 1px solid #2a2213;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.stat { background: #100e0a; padding: 9px 10px; }
+.stat .n {
+  display: block;
+  font: 600 20px/1 var(--mono);
+  color: #f7d5a4;
+  font-variant-numeric: tabular-nums;
+}
+.stat .l {
+  display: block;
+  margin-top: 5px;
+  font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.campaign .why { font-size: 12.5px; color: var(--ink-dim); margin: 0 0 11px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: 10.5px/1 var(--mono);
+  padding: 5px 7px;
+  border-radius: 5px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  word-break: break-all;
+}
+.chip.key { color: #f4c483; border-color: #4a3818; }
+
+.campaign .bands { display: flex; gap: 6px; margin-top: 11px; flex-wrap: wrap; }
+
+/* ------------------------------------------------------------ audit ---- */
+.audit-list { padding: 4px 0 14px; }
+
+.ev {
+  display: grid;
+  grid-template-columns: 58px 42px 108px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 16px;
+  font: 11px/1.45 var(--mono);
+  border-bottom: 1px solid #10141a;
+}
+.ev:hover { background: #0e1116; }
+.ev.forbid { background: rgba(255,59,48,.045); }
+.ev.forbid:hover { background: rgba(255,59,48,.075); }
+.ev.fresh { animation: land .8s ease-out; }
+@keyframes land { from { background: rgba(240,180,100,.16); } to { background: transparent; } }
+.ev.forbid.fresh { animation: landdeny .8s ease-out; }
+@keyframes landdeny { from { background: rgba(255,59,48,.28); } to { background: rgba(255,59,48,.045); } }
+
+.ev .eff { font-weight: 600; letter-spacing: .06em; }
+.ev.forbid .eff { color: var(--black-key); }
+.ev.permit .eff { color: #3f4952; }
+.ev .pid { color: var(--ink-faint); }
+.ev.forbid .pid { color: #f4a08f; }
+.ev .act { color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; }
+.ev .rsn { color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev.forbid .rsn { color: #d9a89e; }
+
+.btn.tiny { padding: 3px 8px; font-size: 11px; }
+.btn.tiny[aria-pressed="true"] {
+  background: rgba(255,59,48,.12);
+  border-color: #4a1418;
+  color: #ff8f84;
+}
+
+.deny-count {
+  font: 600 10px/1 var(--mono);
+  letter-spacing: .06em;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: rgba(255,59,48,.1);
+  border: 1px solid #4a1418;
+  color: #ff8f84;
+}
+
+/* ----------------------------------------------------------- dialog ---- */
+dialog {
+  width: min(820px, 94vw);
+  max-height: 90vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-raise);
+  color: var(--ink);
+  box-shadow: 0 30px 90px rgba(0,0,0,.6);
+}
+dialog::backdrop { background: rgba(4,6,8,.72); }
+
+.dlg-head {
+  position: sticky; top: 0;
+  display: flex; align-items: center; gap: 11px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raise);
+  border-radius: 14px 14px 0 0;
+  z-index: 2;
+}
+.dlg-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.dlg-head .cid { font: 11px/1 var(--mono); color: var(--ink-faint); }
+.dlg-body { padding: 4px 18px 20px; overflow-y: auto; max-height: calc(90vh - 62px); }
+
+.sec { margin-top: 20px; }
+.sec > h4 {
+  margin: 0 0 9px;
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.callout {
+  border-left: 3px solid var(--warm);
+  background: rgba(240,180,100,.06);
+  padding: 11px 13px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13.5px;
+  margin-top: 16px;
+}
+.callout .l {
+  display: block;
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 4px;
+}
+
+.warn {
+  border: 1px solid #4a2130;
+  background: rgba(214,92,140,.08);
+  border-radius: 8px;
+  padding: 11px 13px;
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: #eab6cb;
+}
+.warn b { color: #f5cfdd; }
+.warn code {
+  display: block; margin-top: 6px;
+  font: 11px/1.5 var(--mono); color: #d79bb6;
+  background: var(--bg-sunk); padding: 8px 10px; border-radius: 6px;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.artefact {
+  font: 12px/1.6 var(--mono);
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink-dim);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px;
+      background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: 8px;
+      overflow: hidden; }
+.kv > div { background: var(--bg-raise); padding: 9px 11px; }
+.kv dt { font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+.kv dd { margin: 4px 0 0; font-size: 12.5px; word-break: break-word; }
+
+.draft {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-sunk);
+  margin-bottom: 11px;
+  overflow: hidden;
+}
+.draft-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+.draft-head .t { font-size: 13px; font-weight: 500; }
+.draft-head .k {
+  font: 9.5px/1 var(--mono); letter-spacing: .08em;
+  padding: 4px 6px; border-radius: 4px;
+  background: #161b22; color: var(--ink-dim); border: 1px solid var(--line);
+}
+.draft-head .spacer { margin-left: auto; }
+.draft pre {
+  margin: 0; padding: 13px;
+  font: 12px/1.65 var(--mono);
+  white-space: pre-wrap; word-break: break-word;
+  color: var(--ink-dim);
+  max-height: 260px; overflow-y: auto;
+}
+.draft .foot {
+  padding: 9px 13px; border-top: 1px solid var(--line-soft);
+  font-size: 11.5px; color: var(--ink-faint);
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+}
+.draft .denial {
+  margin: 0; padding: 10px 13px;
+  border-top: 1px solid #4a1418;
+  background: rgba(255,59,48,.07);
+  font: 11.5px/1.5 var(--mono);
+  color: #f4a08f;
+}
+
+.spinner {
+  width: 13px; height: 13px; flex: none;
+  border: 2px solid rgba(255,255,255,.18);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  display: inline-block; vertical-align: -2px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+@media (max-width: 980px) {
+  body { overflow: auto; }
+  .grid { grid-template-columns: 1fr; height: auto; }
+  .col.side { grid-template-rows: auto auto; }
+  .scroll { max-height: 62vh; }
+  .counts { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="lamp" aria-hidden="true"></span>
+    <h1>Porchlight</h1>
+    <span class="tag" id="scope">loading…</span>
+  </div>
+
+  <div class="counts" id="counts"></div>
+
+  <span class="mode" id="mode">—</span>
+
+  <label class="who">
+    on duty
+    <input id="approver" type="text" value="Coordinator" aria-label="Coordinator name, recorded on every approval">
+  </label>
+</header>
+
+<main class="grid">
+
+  <!-- ------------------------------------------------ queue column ---- -->
+  <section class="col" aria-labelledby="queue-h">
+    <form class="composer" id="composer">
+      <label class="sr" for="artefact">Reported message or call transcript</label>
+      <textarea id="artefact" required
+        placeholder="Paste the message, or type what the resident described.
+
+e.g. This is Inspector Sharma, CBI. A parcel in your name contains narcotics. Do not tell your family — this is a confidential investigation. Transfer ₹85,000 to the verification account within 2 hours or a non-bailable warrant will be issued."></textarea>
+
+      <div class="composer-row">
+        <select id="channel" aria-label="How it arrived">
+          <option value="sms">SMS</option>
+          <option value="phone">Phone</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="email">Email</option>
+          <option value="popup">Pop-up</option>
+          <option value="in_person">In person</option>
+          <option value="other">Other</option>
+        </select>
+        <input id="reporter" type="text" placeholder="reporter" aria-label="Reporter pseudonym">
+        <input id="area" type="text" placeholder="pincode" aria-label="Reporter area">
+        <button class="btn primary" type="submit" id="submit-btn">
+          Run intake<span class="kbd">⌘⏎</span>
+        </button>
+        <button class="btn ghost" type="button" id="seed-btn" title="Load the coalition's prior reports. The campaign tail is held back so it fires on the next report, not on page load.">Load prior reports</button>
+        <button class="btn ghost" type="button" id="reset-btn" title="Clear queue, community store and audit trail">Reset</button>
+      </div>
+      <p class="hint" id="hint">
+        Nothing here is sent to anyone. The agent drafts; <b>a human sends</b>.
+      </p>
+    </form>
+
+    <div class="panel-head">
+      <h2 id="queue-h">Queue</h2>
+      <span class="note">ordered by hours to irreversible loss</span>
+      <span class="spacer"></span>
+      <span class="note" id="queue-total"></span>
+    </div>
+
+    <div class="scroll">
+      <ol class="queue" id="queue"></ol>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------- side column ---- -->
+  <section class="col side">
+
+    <section class="panel" aria-labelledby="camp-h">
+      <div class="panel-head">
+        <h2 id="camp-h">Campaigns</h2>
+        <span class="note">clusters that cleared volume, breadth and evidence</span>
+      </div>
+      <div class="scroll" id="campaigns" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="audit-h">
+      <div class="panel-head">
+        <h2 id="audit-h">Policy decisions</h2>
+        <span class="note" id="policy-backend"></span>
+        <span class="spacer"></span>
+        <button class="btn ghost tiny" id="deny-filter" type="button" aria-pressed="false">Denied only</button>
+        <span class="deny-count" id="deny-count">0 denied</span>
+      </div>
+      <div class="scroll" id="audit"></div>
+    </section>
+
+  </section>
+</main>
+
+<dialog id="case-dialog" aria-labelledby="dlg-title">
+  <div class="dlg-head">
+    <span class="band" id="dlg-band">—</span>
+    <h2 id="dlg-title">Case</h2>
+    <span class="cid" id="dlg-id"></span>
+    <span class="spacer" style="margin-left:auto"></span>
+    <button class="btn ghost" id="dlg-close" type="button">Close</button>
+  </div>
+  <div class="dlg-body" id="dlg-body"></div>
+</dialog>
+
+<script>
+"use strict";
+
+/* --------------------------------------------------------------------------
+   No framework, no build step, no CDN. This file is served from the same
+   container as the API so the demo cannot be broken by a network hiccup, and
+   a coalition can host it anywhere that runs one Python process.
+-------------------------------------------------------------------------- */
+
+const $  = (id) => document.getElementById(id);
+const BANDS = ["black", "red", "amber", "green"];
+
+let state = { queue: null, campaigns: [], audit: [], openCase: null };
+let seenCampaigns = new Set();
+let lastSeenAt = 0;
+let denyOnly = false;
+let firstPaint = true;
+let busy = false;
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+));
+
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+};
+
+async function api(path, opts) {
+  const res = await fetch(path, {
+    headers: { "content-type": "application/json" },
+    ...opts,
+  });
+  let body = null;
+  try { body = await res.json(); } catch { /* empty body */ }
+  if (!res.ok && res.status !== 403) {
+    const detail = (body && (body.detail || body.error)) || res.statusText;
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return { ok: res.ok, status: res.status, body };
+}
+
+/* ------------------------------------------------------------ format --- */
+
+function hoursLabel(item) {
+  const h = item.hours_to_irreversible;
+  if (h === null || h === undefined) return { n: "—", u: "no clock" };
+  if (h <= 0) return { n: "0h", u: "gone" };
+  if (h < 1) return { n: Math.round(h * 60) + "m", u: "to loss" };
+  if (h < 48) return { n: Math.round(h) + "h", u: "to loss" };
+  return { n: Math.round(h / 24) + "d", u: "to loss" };
+}
+
+function money(item) {
+  if (!item.amount_demanded) return "";
+  const n = Number(item.amount_demanded).toLocaleString("en-IN");
+  const sym = item.currency === "INR" ? "₹" : item.currency === "USD" ? "$" : "";
+  return sym ? sym + n : n + " " + (item.currency || "");
+}
+
+function clockTime(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function dayMonth(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
+const titleCase = (s) => String(s || "").replace(/_/g, " ");
+
+/* The clustering code refuses to build a campaign on these, because "we could
+   not classify these two reports" is not evidence they share a crew. A queue
+   row that shows one as its only title tells a coordinator nothing, so fall
+   back to what the caller actually claimed. */
+const SENTINELS = new Set(["", "unclassified script", "unknown", "scam call", "fraud attempt"]);
+
+function rowTitle(it) {
+  const fp = (it.script_fingerprint || "").trim().toLowerCase();
+  if (!SENTINELS.has(fp)) return it.script_fingerprint;
+  if (it.impersonated_entity) return "Caller claiming to be " + it.impersonated_entity;
+  const p = (it.pretext || "").trim().replace(/^["'“‘]+/, "").trim();
+  return p ? (p.length > 68 ? p.slice(0, 67) + "…" : p) : "Unclassified report";
+}
+
+/* ------------------------------------------------------------- render -- */
+
+function renderHeader(q) {
+  $("scope").textContent = `${q.community_id} · ${q.pack}`;
+  const mode = $("mode");
+  mode.textContent = q.offline ? "OFFLINE" : "LIVE · BEDROCK";
+  mode.classList.toggle("live", !q.offline);
+  mode.title = q.offline
+    ? "Deterministic node implementations. No model calls, no AWS cost."
+    : "Running the Strands graph against Bedrock.";
+
+  $("counts").innerHTML = BANDS.map((b) => {
+    const n = q.counts[b] || 0;
+    return `<span class="count ${b}${n ? "" : " zero"}"><b>${n}</b>${b}</span>`;
+  }).join("") + (q.injection_flagged
+    ? `<span class="count" title="Reports carrying text aimed at this system rather than at the victim"><b>${q.injection_flagged}</b>injection</span>`
+    : "");
+
+  $("queue-total").textContent = q.total
+    ? `${q.total} open · ${q.campaign_count} campaign${q.campaign_count === 1 ? "" : "s"}`
+    : "";
+  $("policy-backend").textContent = q.policy_backend;
+}
+
+function renderQueue(items) {
+  const ol = $("queue");
+  if (!items.length) {
+    ol.innerHTML = `<li class="empty">
+      Nothing in the queue.<br>
+      Paste a report above, or <b>Load corpus</b> to replay the reconstructed set.
+    </li>`;
+    return;
+  }
+
+  ol.innerHTML = items.map((it) => {
+    const t = hoursLabel(it);
+    const amt = money(it);
+    const flags = [];
+    if (it.campaign_id) {
+      flags.push(`<span class="pill campaign">◆ ${esc(it.campaign_label || "campaign")}</span>`);
+    }
+    if (it.injection_flagged) {
+      flags.push(`<span class="pill injection">injection blocked</span>`);
+    }
+    if (it.drafts_approved) {
+      flags.push(`<span class="pill approved">${it.drafts_approved} approved</span>`);
+    }
+    if (it.isolation_signals && it.isolation_signals.length) {
+      flags.push(`<span class="pill">${it.isolation_signals.length} isolation signal${it.isolation_signals.length === 1 ? "" : "s"}</span>`);
+    }
+
+    const meta = [
+      it.impersonated_entity ? "impersonating " + esc(it.impersonated_entity) : "",
+      it.money_rail && it.money_rail !== "none" ? esc(titleCase(it.money_rail)) : "",
+      amt ? esc(amt) : "",
+    ].filter(Boolean).join(" · ");
+
+    return `<li>
+      <button class="row ${it.urgency}${state.openCase === it.report_id ? " is-open" : ""}"
+              data-id="${esc(it.report_id)}" type="button">
+        <span class="bar" aria-hidden="true"></span>
+        <span class="clock"><span class="n">${t.n}</span><span class="u">${t.u}</span></span>
+        <span class="body">
+          <span class="title">
+            <span class="band ${it.urgency}">${it.urgency.toUpperCase()}</span>
+            <span class="txt">${esc(rowTitle(it))}</span>
+          </span>
+          <span class="meta">${meta || "&nbsp;"}</span>
+          <span class="sub">${esc(it.report_id)} · ${esc(it.reporter)}${it.area ? " · " + esc(it.area) : ""} · ${esc(it.channel)} · ${clockTime(it.received_at)}</span>
+          ${flags.length ? `<span class="flags">${flags.join("")}</span>` : ""}
+        </span>
+      </button>
+    </li>`;
+  }).join("");
+}
+
+function renderCampaigns(list) {
+  const el = $("campaigns");
+  if (!list.length) {
+    el.innerHTML = `<div class="empty">
+      No campaign yet.<br>
+      A cluster becomes a campaign only when it clears <b>3 reports, 3 distinct
+      residents</b> and shares hard evidence — a callback number, a UPI id, a wallet.
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="campaign-list">` + list.map((c) => {
+    const isNew = !seenCampaigns.has(c.campaign_id) && !firstPaint;
+    const bands = BANDS
+      .filter((b) => c.bands[b])
+      .map((b) => `<span class="band ${b}">${c.bands[b]} ${b.toUpperCase()}</span>`)
+      .join("");
+    const inds = c.shared_indicators.length
+      ? c.shared_indicators.map((i) => `<span class="chip key">${esc(i)}</span>`).join("")
+      : `<span class="chip">script match only — no shared hard indicator</span>`;
+
+    return `<article class="campaign${isNew ? " new" : ""}">
+      <h3>${esc(c.campaign_label)}</h3>
+      <div class="cid">${esc(c.campaign_id)} · confidence ${c.confidence} · ${esc(dayMonth(c.first_seen))} → ${esc(dayMonth(c.last_seen))}</div>
+      <div class="stats">
+        <div class="stat"><span class="n">${c.report_count}</span><span class="l">reports</span></div>
+        <div class="stat"><span class="n">${c.distinct_reporters}</span><span class="l">residents</span></div>
+        <div class="stat"><span class="n">${c.span_days}</span><span class="l">days</span></div>
+        <div class="stat"><span class="n">${c.areas_affected.length || "—"}</span><span class="l">area${c.areas_affected.length === 1 ? "" : "s"}</span></div>
+      </div>
+      <p class="why">${esc(c.why)}</p>
+      <div class="chips">${inds}</div>
+      ${bands ? `<div class="bands">${bands}</div>` : ""}
+    </article>`;
+  }).join("") + `</div>`;
+
+  list.forEach((c) => seenCampaigns.add(c.campaign_id));
+}
+
+function renderAudit(a) {
+  $("deny-count").textContent = `${a.denials} denied`;
+  const el = $("audit");
+
+  // Freshness is keyed on the decision timestamp, not on list position: the
+  // endpoint returns a fixed-size tail, so once it is full the length stops
+  // changing and a position-based diff would never flash again.
+  const rows = a.events.map((e) => ({ e, fresh: !firstPaint && e.at > lastSeenAt }));
+  if (a.events.length) {
+    lastSeenAt = Math.max(lastSeenAt, ...a.events.map((e) => e.at));
+  }
+
+  const shown = rows;
+  if (!shown.length) {
+    el.innerHTML = `<div class="empty">${denyOnly
+      ? "No denials in this window.<br>Everything attempted so far passed the gate."
+      : "No policy decisions yet.<br>Every tool call and every draft is evaluated here, default-deny."
+    }</div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="audit-list">` + shown.map(({ e, fresh }) => `
+    <div class="ev ${e.effect}${fresh ? " fresh" : ""}" title="${esc(e.reason)}">
+      <span class="eff">${e.effect === "forbid" ? "FORBID" : "PERMIT"}</span>
+      <span class="pid">${esc(e.policy_id)}</span>
+      <span class="act">${esc(e.action)}</span>
+      <span class="rsn">${esc(e.effect === "forbid" ? e.reason : e.resource || "—")}</span>
+    </div>`).join("") + `</div>`;
+}
+
+/* --------------------------------------------------------- case dialog - */
+
+function draftCard(d, reportId, approvals) {
+  const approval = approvals.find((a) => a.draft_kind === d.kind);
+  const approved = Boolean(approval);
+  return `<div class="draft" data-kind="${esc(d.kind)}">
+    <div class="draft-head">
+      <span class="k">${esc(d.kind.replace(/_/g, " ").toUpperCase())}</span>
+      <span class="t">${esc(d.title)}</span>
+      <span class="spacer"></span>
+      ${approved
+        ? `<span class="pill approved">approved by ${esc(approval.approver)}</span>`
+        : `<button class="btn primary approve-btn" data-report="${esc(reportId)}" data-kind="${esc(d.kind)}">Approve &amp; release</button>`}
+    </div>
+    <pre>${esc(d.body)}</pre>
+    <div class="foot">
+      <span>→ ${esc(d.intended_recipient)}</span>
+      ${d.reading_level_note ? `<span>· ${esc(d.reading_level_note)}</span>` : ""}
+    </div>
+  </div>`;
+}
+
+function renderCase(c) {
+  const s = c.summary;
+  const intake = c.intake || {};
+  const stage = c.stage || {};
+  const corr = c.corroboration || {};
+  const camp = (c.campaign && c.campaign.match) || null;
+  const inds = intake.indicators || {};
+  const allInds = []
+    .concat(inds.phone_numbers || [], inds.urls || [], inds.domains || [],
+            inds.email_addresses || [], inds.crypto_addresses || [], inds.upi_ids || [],
+            inds.bank_accounts_masked || [], inds.case_or_reference_numbers || []);
+
+  $("dlg-band").className = "band " + s.urgency;
+  $("dlg-band").textContent = s.urgency.toUpperCase();
+  $("dlg-title").textContent = s.script_fingerprint || "Case";
+  $("dlg-id").textContent = `${s.report_id} · ${s.reporter}${s.area ? " · " + s.area : ""} · ${dayMonth(s.received_at)} ${clockTime(s.received_at)}`;
+
+  $("dlg-body").innerHTML = `
+    <div class="callout">
+      <span class="l">Do this next</span>
+      ${esc(stage.recommended_human_action || s.decision_for_human || "No action required.")}
+    </div>
+
+    ${intake.contains_injection_attempt ? `<div class="warn">
+      <b>This report carried an instruction aimed at this system, not at the resident.</b>
+      It was processed as evidence and nothing in it was executed — the policy panel
+      shows what was refused.
+      ${intake.injection_evidence ? `<code>${esc(intake.injection_evidence)}</code>` : ""}
+    </div>` : ""}
+
+    ${c.errors && c.errors.length ? `<div class="warn"><b>Pipeline notes.</b>
+      <code>${esc(c.errors.join("\n"))}</code></div>` : ""}
+
+    <div class="sec">
+      <h4>Stage — ${esc(stage.playbook_stage || "")}</h4>
+      <dl class="kv">
+        <div><dt>Impersonating</dt><dd>${esc(intake.impersonated_entity || "—")}</dd></div>
+        <div><dt>Money rail</dt><dd>${esc(titleCase(intake.money_rail || "none"))}</dd></div>
+        <div><dt>Amount</dt><dd>${esc(money(s) || "—")}</dd></div>
+        <div><dt>Deadline claimed</dt><dd>${esc(intake.deadline_claimed || "—")}</dd></div>
+        <div><dt>Hours to irreversible</dt><dd>${stage.hours_to_irreversible ?? "unknown"}</dd></div>
+        <div><dt>Corroboration</dt><dd>${esc(corr.external_confidence || "none")}</dd></div>
+      </dl>
+      ${stage.isolation_signals && stage.isolation_signals.length ? `
+        <div class="chips" style="margin-top:10px">
+          ${stage.isolation_signals.map((x) => `<span class="chip">${esc(x)}</span>`).join("")}
+        </div>` : ""}
+    </div>
+
+    <div class="sec">
+      <h4>Corroboration</h4>
+      <p style="margin:0;font-size:12.5px;color:var(--ink-dim)">${esc(corr.corroboration_summary || "—")}</p>
+      ${allInds.length ? `<div class="chips" style="margin-top:10px">
+        ${allInds.map((i) => `<span class="chip key">${esc(i)}</span>`).join("")}
+      </div>` : ""}
+    </div>
+
+    ${camp ? `<div class="sec">
+      <h4>Campaign</h4>
+      <article class="campaign">
+        <h3>${esc(camp.campaign_label)}</h3>
+        <div class="cid">${esc(camp.campaign_id)} · confidence ${camp.confidence}</div>
+        <p class="why" style="margin-top:11px">${esc(camp.why)}</p>
+      </article>
+    </div>` : ""}
+
+    <div class="sec">
+      <h4>Reported artefact — untrusted</h4>
+      <div class="artefact">${esc(c.report.raw_content)}</div>
+      ${c.report.volunteer_note ? `<div class="foot" style="padding:8px 2px;font-size:11.5px;color:var(--ink-faint)">
+        Volunteer note: ${esc(c.report.volunteer_note)}</div>` : ""}
+    </div>
+
+    <div class="sec">
+      <h4>Drafts — ${(c.response && c.response.drafts.length) || 0} · nothing is sent without a named approver</h4>
+      ${(c.response && c.response.drafts.length)
+        ? c.response.drafts.map((d) => draftCard(d, s.report_id, c.approvals || [])).join("")
+        : `<p style="margin:0;font-size:12.5px;color:var(--ink-faint)">No drafts. This case does not need any.</p>`}
+    </div>
+  `;
+}
+
+async function openCase(id) {
+  state.openCase = id;
+  const { body } = await api(`/case/${encodeURIComponent(id)}`);
+  renderCase(body);
+  const dlg = $("case-dialog");
+  if (!dlg.open) dlg.showModal();
+  renderQueue(state.queue.items);
+}
+
+/* -------------------------------------------------------------- events - */
+
+$("case-dialog").addEventListener("close", () => {
+  state.openCase = null;
+  if (state.queue) renderQueue(state.queue.items);
+});
+$("dlg-close").addEventListener("click", () => $("case-dialog").close());
+
+$("queue").addEventListener("click", (e) => {
+  const row = e.target.closest(".row");
+  if (row) openCase(row.dataset.id);
+});
+
+$("dlg-body").addEventListener("click", async (e) => {
+  const btn = e.target.closest(".approve-btn");
+  if (!btn) return;
+
+  const { report, kind } = btn.dataset;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.innerHTML = `<span class="spinner"></span>`;
+
+  try {
+    const { ok, body } = await api("/approve", {
+      method: "POST",
+      body: JSON.stringify({
+        report_id: report,
+        draft_kind: kind,
+        approver: $("approver").value.trim() || "Coordinator",
+      }),
+    });
+
+    if (ok) {
+      await openCase(report);
+    } else {
+      // A refusal is the product, not an error. Show the rule that fired,
+      // in place, next to the draft it refused.
+      const card = btn.closest(".draft");
+      const d = body.decision;
+      btn.disabled = false;
+      btn.textContent = original;
+      const old = card.querySelector(".denial");
+      if (old) old.remove();
+      card.insertAdjacentHTML("beforeend",
+        `<p class="denial">DENIED · ${esc(d.policy_id)} · ${esc(d.action)} — ${esc(d.reason)}</p>`);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = original;
+    setHint(String(err.message || err), true);
+  }
+  refresh();
+});
+
+function setHint(msg, isError) {
+  const h = $("hint");
+  h.innerHTML = isError ? `<b style="color:#f4a08f">${esc(msg)}</b>` : msg;
+  if (isError) {
+    setTimeout(() => {
+      h.innerHTML = "Nothing here is sent to anyone. The agent drafts; <b>a human sends</b>.";
+    }, 6000);
+  }
+}
+
+async function withBusy(btn, label, fn) {
+  if (busy) return;
+  busy = true;
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> ${label}`;
+  try {
+    await fn();
+  } catch (err) {
+    setHint(String(err.message || err), true);
+  } finally {
+    busy = false;
+    btn.disabled = false;
+    btn.innerHTML = original;
+    await refresh();
+  }
+}
+
+$("composer").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = $("artefact").value.trim();
+  if (!text) return;
+
+  withBusy($("submit-btn"), "Running", async () => {
+    const { body } = await api("/report", {
+      method: "POST",
+      body: JSON.stringify({
+        raw_content: text,
+        channel: $("channel").value,
+        reporter_pseudonym: $("reporter").value.trim() || "resident",
+        reporter_area: $("area").value.trim(),
+      }),
+    });
+    $("artefact").value = "";
+    await refresh();
+    // Open the case we just created: on camera, the point is what came out.
+    if (body && body.report) await openCase(body.report.report_id);
+  });
+});
+
+$("artefact").addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+    e.preventDefault();
+    $("composer").requestSubmit();
+  }
+});
+
+$("seed-btn").addEventListener("click", () => {
+  withBusy($("seed-btn"), "Loading", async () => {
+    const { body } = await api("/replay", {
+      method: "POST",
+      body: JSON.stringify({ directory: "corpus/seed" }),
+    });
+    // The server holds each planted campaign one report short of threshold by
+    // default. Say so, and name a held-back report: the whole point of the
+    // screen is that the campaign appears when a report arrives, not on load.
+    const held = body.held_back || [];
+    setHint(held.length
+      ? `${body.processed} prior report(s) loaded — ${body.campaign_count} campaign(s) visible. `
+        + `${held.length} report(s) held back (${held[0]} …). Submit one to see a campaign fire.`
+      : `Replayed ${body.processed} report(s) into the community store.`);
+  });
+});
+
+$("reset-btn").addEventListener("click", () => {
+  if (!confirm("Clear the queue, the community store and the audit trail?")) return;
+  withBusy($("reset-btn"), "Clearing", async () => {
+    await api("/reset", { method: "POST" });
+    seenCampaigns = new Set();
+    lastSeenAt = 0;
+    firstPaint = true;
+    if ($("case-dialog").open) $("case-dialog").close();
+  });
+});
+
+$("deny-filter").addEventListener("click", () => {
+  denyOnly = !denyOnly;
+  $("deny-filter").setAttribute("aria-pressed", String(denyOnly));
+  // Re-fetch rather than filter what is already here: the endpoint returns a
+  // tail, and the denials the demo needs are usually older than it.
+  refresh();
+});
+
+$("approver").value = store.get("porchlight.approver", "Coordinator");
+$("approver").addEventListener("change", (e) => store.set("porchlight.approver", e.target.value));
+
+/* --------------------------------------------------------------- poll -- */
+
+async function refresh() {
+  try {
+    const [q, a] = await Promise.all([
+      api("/queue").then((r) => r.body),
+      api("/audit?limit=60" + (denyOnly ? "&effect=forbid" : "")).then((r) => r.body),
+    ]);
+    state.queue = q;
+    renderHeader(q);
+    renderQueue(q.items);
+    const camps = await api("/campaigns").then((r) => r.body.campaigns);
+    renderCampaigns(camps);
+    state.audit = a;
+    renderAudit(a);
+    firstPaint = false;
+  } catch (err) {
+    setHint("Cannot reach the server — " + (err.message || err), true);
+  }
+}
+
+refresh();
+setInterval(() => { if (!document.hidden && !busy) refresh(); }, 4000);
+</script>
+</body>
+</html>

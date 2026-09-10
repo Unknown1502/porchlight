@@ -1,0 +1,175 @@
+# Reconstructed scam scripts, built from publicly documented patterns:
+#   - FTC Data Spotlight, "False alarm, real scam" (Aug 2025): the three lies,
+#     the authority handoff, and the crypto / bank / cash / gold rails.
+#   - Public reporting on the Indian "digital arrest" pattern.
+#
+# These are RECONSTRUCTIONS for testing and demonstration. No real victim data,
+# no real message was copied, and every identifier below is invented and
+# reserved-range or obviously fictional.
+#
+# Each template is a *script*, and each script has stages. The generator walks a
+# household through the stages so the corpus contains the same crew at different
+# distances from loss — which is what the triage band has to distinguish.
+
+scripts:
+  - id: digital_arrest
+    fingerprint: digital arrest video call
+    impersonated: ["CBI Mumbai Cyber Cell", "Delhi Police Crime Branch", "CBI Special Unit"]
+    rails: [bank_transfer, upi]
+    stages:
+      - band: green
+        text: |
+          Automated call: "Your Aadhaar number has been linked to a money laundering case
+          registered in {city}. Press 1 to speak to the investigating officer."
+      - band: amber
+        text: |
+          Officer {officer} on video call, in uniform, showing case number {case_no}.
+          "You are under digital arrest. You cannot disconnect this call or inform anyone,
+          including your family — this is a confidential investigation. To prove the funds
+          in your account are clean, transfer them to the RBI verification account
+          {upi}. It will be returned within 24 hours. Callback: {phone}."
+      - band: red
+        text: |
+          Third day on the video call. "Do not hang up. Go to the bank now and transfer
+          Rs {amount}. If the bank asks, say it is for property. If you disconnect, a
+          non-bailable warrant will be issued within 2 hours. Stay on camera."
+      - band: black
+        text: |
+          Daughter's note: Rs {amount} was transferred yesterday to {upi}. They are now
+          demanding a further Rs {amount2} to "release the clearance certificate".
+          She has been on the call for four days and did not tell us.
+
+  - id: parcel_customs
+    fingerprint: parcel seized customs bribe
+    impersonated: ["FedEx Customs", "DHL Import Desk", "Mumbai Customs"]
+    rails: [upi, bank_transfer]
+    stages:
+      - band: green
+        text: |
+          SMS: "FedEx: Your parcel #{case_no} is held at customs. Illegal items detected.
+          Call {phone} immediately to avoid legal action."
+      - band: amber
+        text: |
+          "Sir, the parcel in your name contains 400g of a banned substance. To close the
+          case without an FIR you must pay a clearance penalty of Rs {amount} to {upi}
+          within 2 hours. Do not discuss with anyone, it is an active case."
+      - band: red
+        text: |
+          Volunteer note: resident is at the ATM now, on the phone to {phone}, being told
+          to send Rs {amount} by UPI to {upi} before the "customs office closes at 6pm".
+
+  - id: bank_safe_account
+    fingerprint: bank account frozen safe account
+    impersonated: ["your bank's fraud department", "HDFC Fraud Desk", "Chase Fraud Prevention"]
+    rails: [bank_transfer, wire, crypto]
+    stages:
+      - band: green
+        text: |
+          "This is the fraud department. We have blocked a suspicious transaction of
+          {currency} {amount} on your account. Did you authorise this?"
+      - band: amber
+        text: |
+          "An employee at your branch is involved, so you must not discuss this with branch
+          staff. We are opening a protected account in your name. Move your balance to
+          account ending {acct} and confirm on {phone}. Reference {case_no}."
+      - band: red
+        text: |
+          Family note: he is in the branch now. They told him to say the withdrawal is for
+          home renovation if a teller asks. He is still on the call with {phone}.
+
+  - id: tech_support
+    fingerprint: fake tech support remote access
+    impersonated: ["Microsoft Security", "Apple Support", "Windows Defender"]
+    rails: [gift_card, crypto, bank_transfer]
+    stages:
+      - band: green
+        text: |
+          Full-screen pop-up: "WINDOWS DEFENDER ALERT — your computer is infected and your
+          banking details are exposed. Do not shut down. Call Microsoft on {phone}."
+      - band: amber
+        text: |
+          They installed remote access software and "showed" him the intrusion. Now they say
+          his bank account is compromised and are transferring him to "the bank's fraud
+          team". They asked him to buy {currency} {amount} in gift cards to "secure" the account.
+      - band: red
+        text: |
+          He has read out the codes from four gift cards and they are asking for four more.
+          He is still on the call. Number is {phone}.
+
+  - id: ssn_laundering
+    fingerprint: ssn suspended money laundering
+    impersonated: ["Social Security Administration", "DEA Field Office", "Federal Trade Commission"]
+    rails: [crypto, cash, gold, courier]
+    stages:
+      - band: green
+        text: |
+          Recorded call: "Your Social Security number has been suspended due to suspicious
+          activity linked to narcotics trafficking in Texas. Press 1 to speak to an officer."
+      - band: amber
+        text: |
+          "Your identity has been used to open accounts. To protect your savings while we
+          investigate, convert your balance to gold and hold it for the marshal. Do not tell
+          your family — they may be implicated. Case {case_no}, officer callback {phone}."
+      - band: red
+        text: |
+          Neighbour's note: a courier is coming to her house this afternoon to collect a
+          package. She says it's "for the federal investigation" and won't say more. She
+          went to the jeweller yesterday.
+      - band: black
+        text: |
+          She handed over {currency} {amount} in gold to a courier on Tuesday. They called
+          again today asking for a second package to "complete the case file".
+
+  - id: electricity_cutoff
+    fingerprint: electricity bill disconnection tonight
+    impersonated: ["MSEB", "State Electricity Board", "Power Distribution Co"]
+    rails: [upi]
+    stages:
+      - band: green
+        text: |
+          SMS: "Dear consumer, your electricity will be disconnected TONIGHT 9:30pm as your
+          previous bill was not updated. Contact officer {phone}."
+      - band: amber
+        text: |
+          "Sir, to stop the disconnection make a token payment of Rs 10 to {upi} to verify
+          the meter, the amount will be refunded. Then install this app so I can update the
+          reading."
+
+  - id: kyc_expiry
+    fingerprint: kyc update account block
+    impersonated: ["SBI", "Paytm", "your telecom operator"]
+    rails: [upi, bank_transfer]
+    stages:
+      - band: green
+        text: |
+          SMS: "Your SBI account will be blocked today as KYC is not updated.
+          Update here: {url}"
+      - band: amber
+        text: |
+          "Sir the link is not opening for you? No problem, share the OTP that just came to
+          your phone and I will complete the KYC from my side. Callback {phone}."
+
+  - id: lottery_fee
+    fingerprint: prize lottery advance fee
+    impersonated: ["KBC Lucky Draw", "National Lottery Board"]
+    rails: [upi, gift_card]
+    stages:
+      - band: green
+        text: |
+          WhatsApp: "Congratulations! Your number won Rs 25,00,000 in the KBC lucky draw.
+          To claim, send your details to {phone}."
+      - band: amber
+        text: |
+          "Madam, to release the prize you must first pay the government processing fee of
+          Rs {amount} to {upi}. The prize will be credited within 30 minutes."
+
+benign:
+  - text: |
+      Resident asked whether the SMS from her actual bank about a debit card renewal is
+      genuine. Number matches the one printed on her card. No payment requested.
+  - text: |
+      Volunteer note: gentleman came in worried about a call from his grandson's school
+      about a trip payment. Called the school back on the published number — genuine.
+  - text: |
+      Resident received an email about a pension statement. Sender domain matches the
+      pension provider, no links, no request for anything. Filed as a false alarm.
