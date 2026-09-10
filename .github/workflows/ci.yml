@@ -72,6 +72,12 @@ jobs:
         # instead of fixing the system.
         run: python eval/run_eval.py --corpus corpus/seed --labels eval/labels.json
 
+      - name: Multi-seed gate
+        # One seed is an anecdote: a clustering rule can be accidentally tuned
+        # to fit one generated corpus. This regenerates under five seeds and
+        # fails if any of them misses the gates or regresses a challenge case.
+        run: python eval/run_seeds.py --seeds 5
+
       - name: Deploy scripts are safe to run
         # Both scripts default to a dry run and must exit 0 without creating
         # anything. A deploy script that only works when it is allowed to make

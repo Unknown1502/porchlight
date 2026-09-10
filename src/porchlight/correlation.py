@@ -9,6 +9,7 @@ membership is computed from indicators, not from prose.
 from __future__ import annotations
 
 import hashlib
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -99,6 +100,77 @@ def _fingerprints_match(a: str, b: str) -> bool:
     return fuzz.token_set_ratio(a, b) >= _FINGERPRINT_SIM_THRESHOLD
 
 
+# An indicator carried by more reports than this is describing infrastructure
+# rather than a crew, whatever else is true about it.
+_MAX_REPORTS_PER_INDICATOR = 12
+
+
+def _link_is_corroborated(a: dict[str, Any], b: dict[str, Any],
+                          keys_a: set[str], keys_b: set[str]) -> bool:
+    """Is there enough evidence to say these two reports share a crew?
+
+    Two ways to qualify, and one shared indicator alone is not one of them:
+
+    * **two independent shared indicators** — a number *and* a payment handle,
+      say. Coincidence has to work much harder for two.
+    * **one shared indicator plus the same script** — the crew reused its number
+      and told both residents the same story.
+
+    A crew working a neighbourhood clears this without trying. A bank's helpline
+    quoted in four unrelated scams does not, and neither does one resident's
+    report that muddles two different calls together.
+    """
+    shared = keys_a & keys_b
+    if not shared:
+        return False
+    if len(shared) >= 2:
+        return True
+
+    fa = (a.get("script_fingerprint") or "").strip().lower()
+    fb = (b.get("script_fingerprint") or "").strip().lower()
+    if fa in SENTINEL_FINGERPRINTS or fb in SENTINEL_FINGERPRINTS:
+        # One shared indicator and no usable script on at least one side is the
+        # weakest evidence there is. Two reports nobody could classify are not
+        # thereby the same crew.
+        return False
+    return _fingerprints_match(fa, fb)
+
+
+def _pack_endpoints_present(by_indicator: dict[str, list[int]]) -> set[str]:
+    """Indicator keys that match an endpoint the jurisdiction pack publishes.
+
+    A report that repeats the official helpline or portal is not thereby linked
+    to every other report that does. This is the precise case; the corroboration
+    rule above is the general one.
+    """
+    values = _pack_endpoints()
+    if not values:
+        return set()
+    return {key for key in by_indicator if key.split(":", 1)[-1] in values}
+
+
+def _pack_endpoints() -> set[str]:
+    """Normalised identifiers the jurisdiction pack publishes as legitimate."""
+    try:
+        from .config import active_pack
+
+        pack = active_pack()
+    except Exception:  # noqa: BLE001 — no pack configured is not an error here
+        return set()
+
+    values: set[str] = set()
+    reporting = pack.reporting or {}
+    for name in ("helpline", "portal_url", "secondary_portal_url", "local_helpline"):
+        raw = str(reporting.get(name, "") or "")
+        if not raw:
+            continue
+        digits = re.sub(r"\D", "", raw)
+        if digits:
+            values.add(digits[-10:] if len(digits) >= 10 else digits)
+        values.add(raw.strip().lower())
+    return {v for v in values if v}
+
+
 def build_clusters(records: Iterable[dict[str, Any]]) -> list[Cluster]:
     """Union-find over hard indicators, then a fingerprint pass.
 
@@ -120,14 +192,45 @@ def build_clusters(records: Iterable[dict[str, Any]]) -> list[Cluster]:
         if ra != rb:
             parent[rb] = ra
 
-    # Pass 1 — hard indicators.
+    # Pass 1 — hard indicators, with a corroboration requirement on every link.
+    #
+    # One shared indicator is not enough on its own, and that is the correction
+    # the challenge corpus forced. Several unrelated scams all tell the victim
+    # "ring your bank on the number on your card"; every one of those reports
+    # then carries the same real helpline, and a single-indicator rule fuses them
+    # into one fictitious campaign — broadcast to frightened people on the
+    # strength of a bank's customer-service line. The same shape appears when one
+    # resident muddles two different calls together into a single report and
+    # bridges two genuine crews through it.
+    #
+    # So a link needs either two independent shared indicators, or one shared
+    # indicator plus the same script. A crew working a neighbourhood satisfies
+    # that easily — it reuses its number *and* its payment handle *and* its
+    # script. Shared infrastructure does not.
     by_indicator: dict[str, list[int]] = defaultdict(list)
     for i, r in enumerate(recs):
         for k in r.get("indicator_keys", []):
             by_indicator[str(k).lower()].append(i)
-    for _, idxs in by_indicator.items():
-        for j in idxs[1:]:
-            union(idxs[0], j)
+
+    dropped = _pack_endpoints_present(by_indicator)
+    keysets = [
+        {str(k).lower() for k in r.get("indicator_keys", [])} - dropped
+        for r in recs
+    ]
+
+    # Only pairs that share at least one indicator are worth examining, so this
+    # walks the index rather than every pair in the corpus.
+    candidates: set[tuple[int, int]] = set()
+    for key, idxs in by_indicator.items():
+        if key in dropped or len(idxs) > _MAX_REPORTS_PER_INDICATOR:
+            continue
+        for a_pos in range(len(idxs)):
+            for b_pos in range(a_pos + 1, len(idxs)):
+                candidates.add((idxs[a_pos], idxs[b_pos]))
+
+    for i, j in candidates:
+        if _link_is_corroborated(recs[i], recs[j], keysets[i], keysets[j]):
+            union(i, j)
 
     # Pass 2 — fingerprint similarity, deliberately fenced.
     #

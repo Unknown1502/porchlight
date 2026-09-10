@@ -8,9 +8,9 @@
 #
 # Keeping the recipes in one place means the two cannot drift.
 
-.PHONY: install corpus run demo eval test injection lint docs check deploy clean
+.PHONY: install corpus run demo eval seeds test injection lint docs check deploy clean
 
 PY ?= python
 
-install corpus run demo eval test injection lint docs check deploy clean:
+install corpus run demo eval seeds test injection lint docs check deploy clean:
 	$(PY) tasks.py $@

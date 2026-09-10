@@ -74,6 +74,11 @@ def evaluate() -> None:
     run(PY, "eval/run_eval.py", "--corpus", "corpus/seed", "--labels", "eval/labels.json")
 
 
+def seeds() -> None:
+    """Run the evaluation across several corpus seeds and report the spread."""
+    run(PY, "eval/run_seeds.py", "--seeds", "5")
+
+
 def test() -> None:
     """Full test suite."""
     run(PY, "-m", "pytest", "-q")
@@ -100,6 +105,7 @@ def check() -> None:
     test()
     corpus()
     evaluate()
+    seeds()
     print("\nAll checks passed.")
 
 
@@ -133,6 +139,7 @@ TARGETS = {
     "run": run_server,
     "demo": demo,
     "eval": evaluate,
+    "seeds": seeds,
     "test": test,
     "injection": injection,
     "lint": lint,

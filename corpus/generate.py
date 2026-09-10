@@ -205,6 +205,98 @@ def generate(count: int, campaigns: int, seed: int, injection_rate: float) -> tu
             "_truth_crew": "solo",
         })
 
+    # ---- 3b. THE CHALLENGE SET ----------------------------------------
+    #
+    # Four ways correlation realistically goes wrong. Each is labelled with the
+    # crew truth that makes a wrong link count as a false positive in the eval,
+    # so these cost the score rather than decorating the corpus.
+
+    # (a) Shared LEGITIMATE infrastructure. Several unrelated scams all tell the
+    #     victim to "call your bank on the number on your card" and name the same
+    #     real helpline. If that gets treated as a hard indicator it bridges every
+    #     one of them into a single fictitious campaign — the single most likely
+    #     way this system produces a false alarm.
+    legit_line = "1800 200 3333"
+    legit_domain = "example.com"
+    for k in range(4):
+        script = rng.choice([s for s in scripts["scripts"] if s["id"] != "parcel_customs"])
+        crew = _crew(rng, f"legit{k}", pools)
+        stage = rng.choice(script["stages"])
+        reports.append({
+            "report_id": new_id(),
+            "community_id": "demo-coalition",
+            "received_at": (now - timedelta(days=rng.randint(0, 5), hours=k)).isoformat(),
+            "channel": "phone",
+            "raw_content": (_fill(stage["text"], rng, crew, "Rs")
+                            + f" He said to verify by calling the bank on {legit_line} "
+                              f"or checking {legit_domain}."),
+            "volunteer_note": "",
+            "reporter_pseudonym": _pseudonym(500 + k),
+            "reporter_area": rng.choice(AREAS_OTHER),
+            "_truth_band": stage["band"],
+            # Each is its own crew: linking any two of them is a false positive.
+            "_truth_crew": f"legit{k}",
+            "_challenge": "shared_legitimate_infrastructure",
+        })
+
+    # (b) A BRIDGING report that names indicators belonging to two crews. A
+    #     resident who was called by both, or who muddled two calls together.
+    #     Union-find will happily merge two real campaigns through it, turning
+    #     two accurate warnings into one wrong one.
+    reports.append({
+        "report_id": new_id(),
+        "community_id": "demo-coalition",
+        "received_at": (now - timedelta(days=1)).isoformat(),
+        "channel": "phone",
+        "raw_content": (f"She had two calls in one week and has run them together. "
+                        f"One said parcel, one said electricity. She wrote down "
+                        f"{other_crew['phone']} and also {dup_crew['upi']}. "
+                        f"She has not paid anyone."),
+        "volunteer_note": "Resident is unsure which call was which.",
+        "reporter_pseudonym": _pseudonym(600),
+        "reporter_area": rng.choice(AREAS_OTHER),
+        "_truth_band": "amber",
+        "_truth_crew": "bridge",
+        "_challenge": "bridging_report",
+    })
+
+    # (c) OUT OF WINDOW. The planted crew's own indicators, but months old. It is
+    #     the same crew historically and must not count toward a current campaign.
+    for k in range(2):
+        reports.append({
+            "report_id": new_id(),
+            "community_id": "demo-coalition",
+            "received_at": (now - timedelta(days=45 + k * 5)).isoformat(),
+            "channel": "sms",
+            "raw_content": _fill(parcel["stages"][0]["text"], rng,
+                                 {**other_crew, "crew_id": "stale"}, "Rs"),
+            "volunteer_note": "Historic report, filed late.",
+            "reporter_pseudonym": _pseudonym(700 + k),
+            "reporter_area": AREAS_CAMPAIGN[0],
+            "_truth_band": "green",
+            "_truth_crew": "stale",
+            "_challenge": "out_of_window",
+        })
+
+    # (d) AMBIGUOUS urgency. Genuinely unclear whether money moved. The right
+    #     behaviour is to say so, not to pick a band and sound confident.
+    for k in range(2):
+        reports.append({
+            "report_id": new_id(),
+            "community_id": "demo-coalition",
+            "received_at": (now - timedelta(hours=6 + k)).isoformat(),
+            "channel": "in_person",
+            "raw_content": ("Neighbour says her friend has been on the phone a lot this week "
+                            "and seemed upset about money, but would not say more. "
+                            "No numbers, no names, nothing written down."),
+            "volunteer_note": "Third-hand. Very little to go on.",
+            "reporter_pseudonym": _pseudonym(800 + k),
+            "reporter_area": rng.choice(AREAS_OTHER),
+            "_truth_band": "green",
+            "_truth_crew": "none",
+            "_challenge": "ambiguous_urgency",
+        })
+
     # ---- 4. background noise: unrelated scripts, unrelated crews ----
     others = [s for s in scripts["scripts"] if s["id"] not in {"parcel_customs"}]
     while len(reports) < count - len(scripts["benign"]):
@@ -281,6 +373,10 @@ def main() -> None:
         "injection_heldout_report_ids": [r["report_id"] for r in reports
                                          if r.get("_truth_injection_heldout")],
         "bands": {r["report_id"]: r["_truth_band"] for r in reports},
+        # Which challenge each report belongs to, so the eval can report per-case
+        # results instead of one aggregate that hides where it actually fails.
+        "challenges": {r["report_id"]: r["_challenge"]
+                       for r in reports if r.get("_challenge")},
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "seed": args.seed,
         "provenance": (

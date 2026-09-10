@@ -70,3 +70,79 @@ def test_genre_alone_does_not_clear_the_threshold():
             rec("r3", "c", area="422001")]
     for c in build_clusters(recs):
         assert not meets_threshold(c)
+
+
+# --------------------------------------------------------------------------
+# Corroboration: one shared indicator is not enough
+# --------------------------------------------------------------------------
+def test_a_shared_helpline_does_not_fuse_unrelated_scams():
+    """The false-alarm case that matters most.
+
+    Several unrelated scams all say "ring your bank on the number on your card".
+    Every one of those reports then carries the same real helpline. A
+    single-indicator rule fuses them into one fictitious campaign and broadcasts
+    it to a list of frightened people.
+    """
+    helpline = "phone:8002003333"
+    recs = [
+        rec("r1", "resA", keys=[helpline, "upi:crewA@x"], fp="parcel seized customs bribe"),
+        rec("r2", "resB", keys=[helpline, "upi:crewB@x"], fp="fake tech support remote access"),
+        rec("r3", "resC", keys=[helpline, "upi:crewC@x"], fp="prize lottery advance fee"),
+        rec("r4", "resD", keys=[helpline, "upi:crewD@x"], fp="kyc update account block"),
+    ]
+    for cluster in build_clusters(recs):
+        assert len(cluster.members) == 1, "a shared helpline is not evidence of a crew"
+
+
+def test_a_bridging_report_does_not_merge_two_crews():
+    """One resident muddles two calls together and names both crews' numbers.
+
+    Merging through them turns two accurate warnings into one wrong one.
+    """
+    crew_a = [rec(f"a{i}", f"resA{i}", keys=["phone:9000000011", "upi:crewA@x"],
+                  fp="parcel seized customs bribe") for i in range(3)]
+    crew_b = [rec(f"b{i}", f"resB{i}", keys=["phone:9000000022", "upi:crewB@x"],
+                  fp="electricity bill disconnection tonight", area="440010")
+              for i in range(3)]
+    bridge = [rec("bridge", "resX", keys=["phone:9000000011", "phone:9000000022"],
+                  fp="unclassified script", area="422001")]
+
+    clusters = build_clusters(crew_a + crew_b + bridge)
+    sizes = sorted(len(c.members) for c in clusters)
+    assert 6 not in sizes, "the two crews must not be fused through one confused report"
+    assert sizes.count(3) == 2, "both crews should still be found"
+
+
+def test_one_shared_indicator_plus_the_same_script_is_enough():
+    """A crew that reused its number and told both residents the same story."""
+    recs = [rec("r1", "resA", keys=["phone:9000000042"]),
+            rec("r2", "resB", keys=["phone:9000000042"]),
+            rec("r3", "resC", keys=["phone:9000000042"])]
+    cluster = cluster_for_report("r1", recs)
+    assert cluster is not None and len(cluster.members) == 3
+    assert meets_threshold(cluster)
+
+
+def test_one_shared_indicator_with_no_usable_script_is_not_enough():
+    """Two reports nobody could classify are not thereby the same crew."""
+    recs = [rec("r1", "resA", keys=["phone:9000000042"], fp="unclassified script"),
+            rec("r2", "resB", keys=["phone:9000000042"], fp="unclassified script")]
+    assert all(len(c.members) == 1 for c in build_clusters(recs))
+
+
+def test_two_shared_indicators_link_even_across_different_scripts():
+    """A crew running two scripts still shares its infrastructure."""
+    recs = [rec("r1", "resA", keys=["phone:9000000042", "upi:payee7@ybl"],
+                fp="parcel seized customs bribe"),
+            rec("r2", "resB", keys=["phone:9000000042", "upi:payee7@ybl"],
+                fp="electricity bill disconnection tonight")]
+    cluster = cluster_for_report("r1", recs)
+    assert cluster is not None and len(cluster.members) == 2
+
+
+def test_an_indicator_carried_by_very_many_reports_is_infrastructure():
+    """Beyond a certain spread, an identifier is a utility, not a signature."""
+    shared = "url:https://example.com/help"
+    recs = [rec(f"r{i}", f"res{i}", keys=[shared], fp="parcel seized customs bribe")
+            for i in range(15)]
+    assert all(len(c.members) == 1 for c in build_clusters(recs))

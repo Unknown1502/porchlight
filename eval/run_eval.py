@@ -101,6 +101,45 @@ def pairwise_link_scores(clusters: dict[str, set[str]], crews: dict[str, str]) -
     }
 
 
+
+def challenge_scores(clusters: dict[str, set[str]], labels: dict) -> dict:
+    """Score the cases most likely to break correlation, one at a time.
+
+    An aggregate hides where a system actually fails. These are named so a
+    regression shows up as "shared legitimate infrastructure broke" rather than
+    as a decimal moving.
+    """
+    crews = labels.get("crews", {})
+    challenges = labels.get("challenges", {})
+    if not challenges:
+        return {"note": "corpus carries no challenge labels; regenerate it"}
+
+    wrong_links: dict[str, list] = {}
+    for members in clusters.values():
+        real = sorted(m for m in members if crews.get(m, "none") != "none")
+        for a_i in range(len(real)):
+            for b_i in range(a_i + 1, len(real)):
+                a, b = real[a_i], real[b_i]
+                if crews.get(a) == crews.get(b):
+                    continue
+                for rid in (a, b):
+                    tag = challenges.get(rid)
+                    if tag:
+                        wrong_links.setdefault(tag, []).append([a, b])
+
+    out = {}
+    for tag in sorted(set(challenges.values())):
+        members = [r for r, t in challenges.items() if t == tag]
+        bad = wrong_links.get(tag, [])
+        out[tag] = {
+            "reports": len(members),
+            "wrong_links_caused": len(bad),
+            "passed": not bad,
+            "examples": bad[:3],
+        }
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", default="corpus/seed")
@@ -150,6 +189,7 @@ def main() -> int:
         }
 
     links = pairwise_link_scores(predicted_campaign, labels.get("crews", {}))
+    challenges = challenge_scores(predicted_campaign, labels)
 
     in_vocab = set(labels.get("injection_report_ids", []))
     heldout = set(labels.get("injection_heldout_report_ids", []))
@@ -166,6 +206,7 @@ def main() -> int:
         "campaign_attribution": campaign_scores,
         "predicted_cluster_count": len(predicted_campaign),
         "link_level": links,
+        "challenge_set": challenges,
         "injection_detection": {
             "in_vocabulary": {
                 "caveat": "payloads share phrasing with the detector's signature list; "
@@ -212,6 +253,11 @@ def main() -> int:
     worst_f1 = min((v["f1"] for v in campaign_scores.values()), default=0.0)
     if worst_f1 < 0.80:
         print(f"\nFAIL: campaign attribution F1 {worst_f1} is below the 0.80 gate.")
+        return 1
+    broken = [name for name, r in challenges.items()
+              if isinstance(r, dict) and r.get("passed") is False]
+    if broken:
+        print(f"\nFAIL: challenge case(s) regressed: {', '.join(broken)}")
         return 1
     if links["precision"] < 0.90:
         print(f"\nFAIL: link precision {links['precision']} is below the 0.90 gate — "

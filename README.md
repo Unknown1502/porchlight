@@ -12,7 +12,7 @@ Built with the [Strands Agents SDK](https://strandsagents.com) for the AWS
 *Agents for Humans* hackathon, **Good Neighbor Agents** track.
 
 ```
-Attribution F1 1.00 · 0 false links · 92 tests · Apache-2.0
+Attribution F1 1.00 across 5 seeds · 0 false links · 184 tests · Apache-2.0
 ```
 
 Every number in this README is either measured by a command you can run, or
@@ -181,36 +181,56 @@ claim of global coverage.
 
 ## Measured evaluation
 
-`make eval` — 60 synthetic reports, offline deterministic mode, reproducible from
-a fixed seed:
+`python tasks.py eval` — 60 synthetic reports, offline deterministic mode.
+`python tasks.py seeds` runs the whole thing across five corpus seeds; the
+figures below are the **worst** seed, not the mean, because a coordinator is not
+comforted by the average day.
 
-| Metric | Value | What it means |
+| Metric | Across 5 seeds | What it means |
 |---|---|---|
-| Campaign attribution — precision / recall / **F1** | 1.00 / 1.00 / **1.00** | The planted 6-report campaign, recovered exactly |
-| Link precision | **1.00** | Of every pair of reports asserted to share a crew, none was wrong |
-| False-positive links | **0** | No unrelated residents merged into a campaign |
-| False-negative links | 3 | Three real same-crew pairs were not linked |
-| Injection flagging — held-out set | **0.43** (3/7) | Paraphrase, homoglyph, spacing, encoding, non-English evasions |
-| Injection flagging — in-vocabulary set | 1.00 (7/7) | Regression check only — see caveat below |
-| Policy denials recorded | 144 | Across the 60-report run |
+| Campaign attribution — **F1** | **1.00** on every seed | The planted campaign, recovered exactly |
+| Link precision | **1.00** on every seed | Of every pair of reports asserted to share a crew, none was wrong |
+| False-positive links | **0**, total, across all seeds | No unrelated residents merged into a campaign |
+| Link recall | 0.82 | Some genuine same-crew pairs are not linked — the deliberate cost of the corroboration rule below |
+| Challenge cases passed | 4 of 4, every seed | Shared legitimate infrastructure, bridging report, out-of-window, ambiguous urgency |
+| Injection flagging — held out | **0.14–0.57, median 0.29** | Paraphrase, homoglyph, spacing, base64, non-English evasions |
+| Injection flagging — in vocabulary | 1.00 | Regression check only — see caveat below |
 
-Two of these need their caveats stated rather than buried:
+### The challenge set is where the real work showed up
+
+Adding four adversarial cases to the corpus dropped link precision from 1.00 to
+**0.50** and produced **21 false-positive links**. The cause was a single rule
+that had looked fine for months: two reports sharing *one* hard indicator were
+treated as the same crew. Several unrelated scams all tell the victim "ring your
+bank on the number on your card", so every one of those reports carried the same
+real helpline — and union-find fused them into one fictitious campaign, the kind
+that gets broadcast to a list of frightened people.
+
+A link now needs either **two independent shared indicators**, or **one shared
+indicator plus the same script**. A crew working a neighbourhood clears that
+without trying; a bank's helpline does not. Precision went back to 1.00 with zero
+false-positive links, and link recall fell to 0.82. That trade is the right way
+round: a false campaign costs the coalition its credibility, and credibility is
+the thing it cannot rebuild.
+
+### Two caveats stated rather than buried
 
 - **In-vocabulary injection recall is not a capability measurement.** Those
   payloads and the detector's signature list were written against each other. It
-  is a regression test. The honest number is the held-out one, **0.43**, and it
-  is low because a signature list catches the careless and misses the deliberate.
-  That is survivable *because the detector is not the control* — P001–P005 gate
-  the action, not the prose. A missed flag costs a badge on a screen; it does not
-  cost a broadcast.
+  is a regression test. The honest number is the held-out one — **median 0.29,
+  as low as 0.14 on one seed** — and it is low because a signature list catches
+  the careless and misses the deliberate. That is survivable *because the
+  detector is not the control*: P001–P005 gate the action, not the prose. A
+  missed flag costs a badge on a screen; it does not cost a broadcast.
 - **There is no time-saving claim.** An earlier version of the eval divided an
   unmeasured 18-minute "manual baseline" by the offline stub's own latency and
   reported a ~254,000× speedup. Both halves were unsupported and both are gone.
-  [docs/manual-baseline.md](docs/manual-baseline.md) sets out a procedure for
-  measuring one properly; until someone runs it, no comparison is reported.
+  [docs/manual-baseline.md](docs/manual-baseline.md) sets out how to measure one
+  properly; until someone runs it, no comparison is reported.
 
-The eval exits non-zero below attribution F1 0.80 or link precision 0.90, so a
-clustering regression breaks CI rather than the demo.
+The eval exits non-zero below attribution F1 0.80, below link precision 0.90, or
+if any challenge case regresses — on any of the five seeds. A clustering
+regression breaks CI rather than the demo.
 
 ## Demo
 
@@ -243,7 +263,7 @@ make corpus                     # 60 reports, one planted campaign
 make demo                       # watch the campaign fire, in the terminal
 make run                        # the coordinator dashboard on :8080
 make eval                       # the table above, reproducible
-make test                       # 92 tests
+python tasks.py check           # lint, tests, corpus, eval, 5-seed gate
 ```
 
 `make run` also serves the AgentCore Runtime contract (`POST /invocations`,
@@ -325,9 +345,9 @@ In the order that would matter most:
 |---|---|---|
 | $2.4B reported 60+ fraud losses, 2024; $10.1B–$81.5B modelled | Externally verified | FTC annual report to Congress[^ftc] |
 | Hundreds of US counties run an elder-fraud network | Externally verified | CFPB[^cfpb] |
-| Attribution F1 1.00, link precision 1.00, 0 false links | Measured | `make eval`, fixed seed |
-| Held-out injection recall 0.43 | Measured | `make eval` |
-| 92 tests, lint clean | Measured | `make test`, `make lint` |
+| Attribution F1 1.00, link precision 1.00, 0 false links | Measured | `python tasks.py seeds`, 5 seeds |
+| Held-out injection recall 0.14-0.57 (median 0.29) | Measured | `python tasks.py seeds` |
+| 184 tests, lint clean | Measured | `python tasks.py check` |
 | AgentCore Policy engine created and ACTIVE | Measured (live AWS) | `deploy/setup_policy.sh --apply` |
 | Container serves the Runtime contract | Measured | built and curled locally |
 | The corpus, its scripts and all identifiers | Synthetic / reconstructed | `corpus/templates.yaml` |
