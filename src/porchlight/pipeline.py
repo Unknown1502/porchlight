@@ -402,8 +402,16 @@ def _record_refused_requests(case: CaseFile) -> None:
     absence, and neither can anyone reviewing the system. Second, it puts the
     request where it belongs: in the trail, tagged ``origin=untrusted-content``,
     next to the report id, so the refusal is attributable rather than ambient.
+
+    Deliberately **not** gated on ``contains_injection_attempt``. That flag comes
+    from a signature list whose measured recall on held-out evasions is about
+    0.29, so gating on it meant a report that plainly asked us to fetch its link
+    was never put to the policy engine at all — the weakest component in the
+    system was deciding whether the strongest one got consulted. Asking what the
+    text requested, and asking whether that is permitted, are independent
+    questions and are now answered independently.
     """
-    if not case.intake or not case.intake.contains_injection_attempt:
+    if not case.intake:
         return
     from .policy import evaluate
 

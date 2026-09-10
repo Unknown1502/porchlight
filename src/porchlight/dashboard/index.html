@@ -4,73 +4,99 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Porchlight</title>
+<meta name="color-scheme" content="light">
+<link rel="preload" href="/fonts/public-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
-/* ---------------------------------------------------------------------------
-   Porchlight — the coordinator's inbox.
+/* ===========================================================================
+   PORCHLIGHT — the neighbourhood desk.
 
-   Who this is for: one part-time volunteer with about four hours a week, opening
-   this on a Monday morning. Not an analyst. Not technical. They need two
-   answers fast — what happened, and what do you need from me — and then to get
-   on with their day.
+   Who reads this: one part-time volunteer who coordinates a county elder-fraud
+   response network. Perhaps four hours a week. Not an analyst. They open this
+   on a Monday to find out what happened and what needs them.
 
-   Three rules held everywhere:
+   The room this should feel like is a local newsroom or a community office:
+   quiet, observant, organised. Not an operations centre. So:
 
-   1. ONE COLUMN. The order of the page is the priority order. A three-panel
-      console asks the reader to decide where to look; an inbox does not.
-   2. SATURATED COLOUR MEANS SEVERITY, AND NOTHING ELSE. No coloured headings,
-      no coloured buttons for emphasis. When something here is red, it is red
-      because a person is hours from losing money. Colour is never the only
-      carrier: every band is also a word.
-   3. THE TECHNICAL TRUTH IS PRESENT BUT FOLDED AWAY. Traces, policy denials and
-      cluster internals all live in <details>. Available on demand, never in the
-      way of the one thing that needs deciding.
+   - Warm paper ground, one forest green for action, amber used sparingly, and
+     red reserved for genuinely critical states and destructive actions. Colour
+     never carries meaning alone — every state is also a word.
+   - Newsreader for page titles and the drafted message, because those are read
+     the way prose is read. Public Sans everywhere the eye is scanning rather
+     than reading. Both self-hosted, both with real fallback stacks.
+   - Flat surfaces, thin rules, 6-10px radii. Shadow appears exactly once, under
+     the dialog, where it means "this is above the page".
+   - One spacing scale. Decisions get room; report lists stay compact.
+   =========================================================================== */
 
-   The drafted resident message is the only serif on the page. Someone is going
-   to read it out loud to a frightened person; it should look like prose, not
-   like a form field.
---------------------------------------------------------------------------- */
+/* --- fonts --------------------------------------------------------------- */
+@font-face {
+  font-family: "Public Sans";
+  src: url("/fonts/public-sans-latin.woff2") format("woff2");
+  font-weight: 100 900; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Newsreader";
+  src: url("/fonts/newsreader-latin.woff2") format("woff2");
+  font-weight: 200 800; font-style: normal; font-display: swap;
+}
+
+/* --- tokens -------------------------------------------------------------- */
 :root {
-  /* Cool paper, not cream. A warm-cream ground with a serif display is the
-     house style of every generated page this year; this is a working tool. */
-  --paper:      #eceee9;
-  --surface:    #f8f9f7;
-  --sunk:       #e3e6e1;
-  --line:       #cfd4cd;
-  --line-soft:  #dfe3dd;
+  /* Ground and surfaces */
+  --paper:        #F6F4EF;
+  --surface:      #FFFFFF;
+  --surface-warm: #FBFAF7;
+  --sunk:         #EFEDE6;
 
-  --ink:        #1b211e;
-  --ink-mid:    #4e5754;
-  --ink-dim:    #6d7873;
+  /* Ink. Near-black green, so text sits in the same family as the brand. */
+  --ink:          #202D27;
+  --ink-mid:      #4C5A53;
+  /* Both darkened from their first draft: at #6B7770 and #8B958F they measured
+     4.25 and 2.81 against the paper ground, and they carry real content -
+     section labels and the timestamps in the activity log. Now 4.57 and 4.55,
+     so every piece of text on the page clears AA. */
+  --ink-soft:     #66726B;
+  --ink-faint:    #6A716D;
 
-  /* The porch light. Brand warmth, used in exactly two places: the header rule
-     and the "while you were away" band. */
-  --glow:       #c8791f;
-  --glow-soft:  #f6ead9;
+  /* Rules */
+  --rule:         #DFDBD1;
+  --rule-soft:    #EAE7DE;
 
-  /* Severity. Print-weight, legible on paper, reserved. */
-  --black-key:  #5c1712;  --black-bg: #f0dcda;
-  --red-key:    #ab2e1c;  --red-bg:   #f6e0da;
-  --amber-key:  #7d5504;  --amber-bg: #f6ebd4;
-  --green-key:  #1d6444;  --green-bg: #dfece5;
+  /* Action */
+  --forest:       #285442;
+  --forest-hover: #1D3F32;
+  --forest-tint:  #E7EEEA;
 
-  --radius:     10px;
-  --col:        44rem;
+  /* Attention, used sparingly */
+  --amber:        #8A5A16;
+  --amber-tint:   #F7EEDD;
+
+  /* Critical and destructive only */
+  --red:          #9E2B20;
+  --red-tint:     #F6E5E2;
+
+  /* Urgency bands. Distinct from "attention" — these describe a resident's
+     distance from irreversible loss, which is the one thing worth shouting. */
+  --band-black:   #5C1712;
+  --band-red:     #9E2B20;
+  --band-amber:   #8A5A16;
+  --band-green:   #2F6A4F;
+
+  /* Spacing scale: 4 8 12 16 24 32 48 64 */
+  --s1: 0.25rem; --s2: 0.5rem;  --s3: 0.75rem; --s4: 1rem;
+  --s5: 1.5rem;  --s6: 2rem;    --s7: 3rem;    --s8: 4rem;
+
+  --r-sm: 6px; --r-md: 8px; --r-lg: 10px;
+
+  --sans: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          Roboto, "Helvetica Neue", Arial, sans-serif;
+  --serif: "Newsreader", ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+
+  --measure: 62ch;
+  --shell: 68rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #141613; --surface: #1c201c; --sunk: #101210;
-    --line: #333a34; --line-soft: #262b26;
-    --ink: #eef1ec; --ink-mid: #b3bcb6; --ink-dim: #8c968f;
-    --glow: #e6a24c; --glow-soft: #2a2116;
-    --black-key: #ff9c92; --black-bg: #3a1512;
-    --red-key:   #ff9478; --red-bg:   #38180f;
-    --amber-key: #e8b65c; --amber-bg: #33260d;
-    --green-key: #7fd0a4; --green-bg: #16301f;
-  }
-}
-
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -78,345 +104,473 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font: 400 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-        "Helvetica Neue", Arial, sans-serif;
-  font-feature-settings: "tnum" 1;
+  font: 400 16px/1.6 var(--sans);
+  font-feature-settings: "tnum" 1, "cv05" 1;
+  -webkit-font-smoothing: antialiased;
 }
 
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.012em; line-height: 1.25; }
+p { margin: 0; }
+a { color: var(--forest); text-underline-offset: 2px; }
+a:hover { color: var(--forest-hover); }
+
 :focus-visible {
-  outline: 2.5px solid var(--glow);
+  outline: 2px solid var(--forest);
   outline-offset: 2px;
   border-radius: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
 }
 
-.wrap { max-width: var(--col); margin: 0 auto; padding: 0 1.25rem 6rem; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 
-/* --- header ------------------------------------------------------------- */
-header {
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
-  position: sticky; top: 0; z-index: 20;
+/* --- app shell ----------------------------------------------------------- */
+.masthead { background: var(--surface); border-bottom: 1px solid var(--rule); }
+.masthead-in {
+  max-width: var(--shell); margin: 0 auto;
+  padding: var(--s3) var(--s5);
+  display: flex; align-items: center; gap: var(--s4);
 }
-.header-in {
-  max-width: var(--col); margin: 0 auto; padding: 0.85rem 1.25rem;
-  display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap;
-}
-.mark {
-  font-size: 1.02rem; font-weight: 620; letter-spacing: -0.015em; margin: 0;
-  display: flex; align-items: center; gap: 0.5rem;
-}
-/* The porch light itself: a small lit point, not a logo lockup. */
-.mark::before {
-  content: ""; width: 9px; height: 9px; border-radius: 50%;
-  background: var(--glow);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--glow) 22%, transparent),
-              0 0 14px 2px color-mix(in oklab, var(--glow) 55%, transparent);
-}
-.who { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; }
-.who label { color: var(--ink-dim); }
-.who input {
-  font: inherit; font-size: 0.82rem; padding: 0.2rem 0.45rem;
-  border: 1px solid var(--line); border-radius: 6px;
-  background: var(--paper); color: var(--ink); width: 9.5rem;
-}
-.modes {
-  max-width: var(--col); margin: 0 auto; padding: 0 1.25rem 0.7rem;
-  display: flex; gap: 0.4rem; flex-wrap: wrap;
-}
-.mode {
-  font-size: 0.715rem; letter-spacing: 0.005em;
-  padding: 0.16rem 0.5rem; border-radius: 999px;
-  border: 1px solid var(--line); color: var(--ink-mid); background: var(--paper);
-}
-.mode.sandbox { border-color: color-mix(in oklab, var(--glow) 45%, var(--line)); }
 
-/* --- section rhythm ----------------------------------------------------- */
-section { margin-top: 2.4rem; }
-h2 {
-  font-size: 0.95rem; font-weight: 600; letter-spacing: -0.005em;
-  margin: 0 0 0.15rem;
+.wordmark {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  font-family: var(--serif); font-size: 1.24rem; font-weight: 500;
+  letter-spacing: -0.015em; color: var(--ink); text-decoration: none;
 }
-.sub { color: var(--ink-dim); font-size: 0.85rem; margin: 0 0 1rem; }
+.wordmark svg { flex: none; }
+.wordmark:hover { color: var(--ink); }
 
-/* --- band 1: while you were away ---------------------------------------- */
-.away {
-  background: var(--glow-soft);
-  border: 1px solid color-mix(in oklab, var(--glow) 30%, var(--line));
-  border-radius: var(--radius);
-  padding: 1.15rem 1.25rem;
-  margin-top: 1.75rem;
+.workspace {
+  font-size: 0.875rem; color: var(--ink-soft);
+  padding-left: var(--s4); border-left: 1px solid var(--rule);
 }
-.away p.lede {
-  margin: 0 0 0.9rem; font-size: 1.06rem; line-height: 1.45;
-  max-width: 34rem;
+.workspace b { font-weight: 500; color: var(--ink-mid); }
+.workspace .synthetic {
+  display: inline-block; margin-left: var(--s2);
+  font-size: 0.75rem; color: var(--amber);
+  background: var(--amber-tint); border-radius: var(--r-sm);
+  padding: 0.05rem var(--s2);
 }
-.tallies { display: flex; flex-wrap: wrap; gap: 1.5rem; }
-.tally { min-width: 4.5rem; }
-.tally b { display: block; font-size: 1.5rem; font-weight: 600; line-height: 1.1; }
-.tally span { font-size: 0.775rem; color: var(--ink-mid); }
 
-/* --- band 2: the decision ----------------------------------------------- */
+.account { margin-left: auto; display: flex; align-items: center; gap: var(--s2); }
+.account label { font-size: 0.8125rem; color: var(--ink-soft); }
+.account input {
+  font: inherit; font-size: 0.875rem; width: 10rem;
+  padding: var(--s1) var(--s2);
+  border: 1px solid var(--rule); border-radius: var(--r-sm);
+  background: var(--surface-warm); color: var(--ink);
+}
+
+/* Navigation */
+nav.tabs { background: var(--surface); border-bottom: 1px solid var(--rule); }
+.tabs-in {
+  max-width: var(--shell); margin: 0 auto; padding: 0 var(--s5);
+  display: flex; gap: var(--s5); overflow-x: auto; scrollbar-width: none;
+}
+.tabs-in::-webkit-scrollbar { display: none; }
+.tab {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  font: inherit; font-size: 0.9375rem; color: var(--ink-soft);
+  padding: var(--s3) 0 calc(var(--s3) - 2px);
+  border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-current="page"] { color: var(--ink); font-weight: 500; border-bottom-color: var(--forest); }
+.tab .count {
+  margin-left: var(--s1); font-size: 0.8125rem; color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.tab[aria-current="page"] .count { color: var(--forest); }
+
+main { max-width: var(--shell); margin: 0 auto; padding: var(--s6) var(--s5) var(--s8); }
+
+/* --- page heading -------------------------------------------------------- */
+.page-title {
+  font-family: var(--serif); font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.25rem);
+  font-weight: 400; letter-spacing: -0.02em; line-height: 1.15;
+  margin-bottom: var(--s2);
+}
+.page-summary { color: var(--ink-mid); max-width: var(--measure); font-size: 1.0625rem; }
+.page-summary strong { font-weight: 600; color: var(--ink); }
+
+/* --- section rhythm ------------------------------------------------------ */
+.section { margin-top: var(--s7); }
+.section-head {
+  display: flex; align-items: baseline; gap: var(--s3);
+  padding-bottom: var(--s2); margin-bottom: var(--s4);
+  border-bottom: 1px solid var(--rule);
+}
+.section-head h2 {
+  font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.section-head .aside { margin-left: auto; font-size: 0.875rem; color: var(--ink-faint); }
+
+/* --- the decision: the dominant element ---------------------------------- */
 .decision {
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--glow);
-  border-radius: var(--radius);
-  background: var(--surface);
-  padding: 1.2rem 1.3rem;
-  margin-bottom: 1rem;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: var(--r-lg); padding: var(--s5);
 }
-.decision h3 { margin: 0 0 0.5rem; font-size: 1.08rem; font-weight: 600; line-height: 1.35; }
-.because { margin: 0 0 0.9rem; color: var(--ink-mid); font-size: 0.9rem; max-width: 36rem; }
+.decision + .decision { margin-top: var(--s4); }
+.decision h3 {
+  font-family: var(--serif); font-weight: 500; font-size: 1.375rem;
+  letter-spacing: -0.015em; margin-bottom: var(--s3); max-width: var(--measure);
+}
+.decision .why { color: var(--ink-mid); max-width: var(--measure); margin-bottom: var(--s4); }
 
-.evidence { margin: 0 0 1.1rem; padding: 0; list-style: none; }
-.evidence li {
-  display: flex; gap: 0.6rem; align-items: baseline;
-  font-size: 0.87rem; padding: 0.22rem 0;
-  border-bottom: 1px solid var(--line-soft);
+.evidence-inline { margin: 0 0 var(--s4); padding: 0; list-style: none; }
+.evidence-inline li {
+  display: flex; gap: var(--s3); padding: var(--s2) 0;
+  border-top: 1px solid var(--rule-soft); font-size: 0.9375rem;
 }
-.evidence li:last-child { border-bottom: 0; }
-.evidence .what { color: var(--ink-mid); flex: 0 0 11rem; }
-.evidence .val {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.83rem; word-break: break-all;
-}
+.evidence-inline li:first-child { border-top: 0; }
+.evidence-inline .k { color: var(--ink-soft); flex: 0 0 13rem; }
+.evidence-inline .v { font-variant-numeric: tabular-nums; word-break: break-word; }
 
-/* The message a human will read aloud. The only serif on the page. */
-.draft-label { font-size: 0.79rem; color: var(--ink-dim); margin: 0 0 0.35rem; }
-textarea.draft {
-  width: 100%; min-height: 8.5rem; resize: vertical;
-  font: 400 0.98rem/1.6 Georgia, "Iowan Old Style", "Times New Roman", serif;
-  color: var(--ink); background: var(--paper);
-  border: 1px solid var(--line); border-radius: 8px;
-  padding: 0.85rem 0.95rem;
+.decision-actions {
+  display: flex; align-items: center; gap: var(--s3);
+  flex-wrap: wrap; margin-top: var(--s5);
+  padding-top: var(--s4); border-top: 1px solid var(--rule-soft);
 }
-.edited-note {
-  font-size: 0.79rem; color: var(--amber-key); margin: 0.45rem 0 0; display: none;
-}
-.edited-note.show { display: block; }
+.not-sent { font-size: 0.875rem; color: var(--ink-soft); margin-left: auto; }
 
-.actions { display: flex; gap: 0.55rem; flex-wrap: wrap; margin-top: 1rem; }
-button {
-  font: inherit; font-size: 0.875rem; font-weight: 500;
-  padding: 0.5rem 0.95rem; border-radius: 7px; cursor: pointer;
-  border: 1px solid var(--line); background: var(--paper); color: var(--ink);
-  transition: background 120ms ease, border-color 120ms ease;
+/* --- buttons ------------------------------------------------------------- */
+.btn {
+  appearance: none; font: inherit; font-size: 0.9375rem; font-weight: 500;
+  padding: var(--s2) var(--s4); min-height: 2.5rem;
+  border-radius: var(--r-sm); border: 1px solid var(--rule);
+  background: var(--surface); color: var(--ink); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
-button:hover:not(:disabled) { background: var(--sunk); }
-button:disabled { opacity: 0.5; cursor: default; }
-button.primary {
-  background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 560;
+.btn:hover:not(:disabled) { background: var(--sunk); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.btn-primary {
+  background: var(--forest); border-color: var(--forest); color: #fff; font-weight: 600;
 }
-button.primary:hover:not(:disabled) { background: var(--ink-mid); border-color: var(--ink-mid); }
-button.quiet { color: var(--ink-mid); }
-.small { font-size: 0.79rem; padding: 0.32rem 0.6rem; }
-.sends-to { font-size: 0.79rem; color: var(--ink-dim); margin: 0.65rem 0 0; }
+.btn-primary:hover:not(:disabled) { background: var(--forest-hover); border-color: var(--forest-hover); }
+.btn-quiet { border-color: transparent; background: none; color: var(--ink-mid); }
+.btn-quiet:hover:not(:disabled) { background: var(--sunk); }
+.btn-danger { border-color: var(--rule); color: var(--red); }
+.btn-danger:hover:not(:disabled) { background: var(--red-tint); border-color: var(--red); }
+.btn-sm { font-size: 0.875rem; padding: var(--s1) var(--s3); min-height: 2rem; }
 
-/* --- band 3: cases ------------------------------------------------------ */
-ol.cases { list-style: none; margin: 0; padding: 0; }
-ol.cases > li { border-bottom: 1px solid var(--line-soft); }
-.case-row {
-  width: 100%; text-align: left; background: none; border: 0; border-radius: 0;
-  padding: 0.62rem 0.2rem; display: flex; gap: 0.75rem; align-items: baseline;
+.btn .spinner {
+  width: 0.85em; height: 0.85em; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent;
+  animation: spin 700ms linear infinite;
 }
-.case-row:hover { background: var(--sunk); }
-.band {
-  flex: 0 0 4.6rem; font-size: 0.7rem; font-weight: 640; letter-spacing: 0.02em;
-  padding: 0.1rem 0.4rem; border-radius: 4px; text-align: center;
-}
-.band.black { background: var(--black-bg); color: var(--black-key); }
-.band.red   { background: var(--red-bg);   color: var(--red-key); }
-.band.amber { background: var(--amber-bg); color: var(--amber-key); }
-.band.green { background: var(--green-bg); color: var(--green-key); }
-.hours { flex: 0 0 4.2rem; font-size: 0.8rem; color: var(--ink-mid); }
-.hours.unknown { font-style: italic; color: var(--ink-dim); }
-.case-what { flex: 1; min-width: 0; }
-.case-what b { font-weight: 500; font-size: 0.9rem; }
-.case-what small { display: block; color: var(--ink-dim); font-size: 0.78rem;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.flag {
-  font-size: 0.7rem; padding: 0.05rem 0.35rem; border-radius: 4px;
-  border: 1px solid var(--line); color: var(--ink-mid);
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* --- folded technical detail -------------------------------------------- */
-details {
-  border-top: 1px solid var(--line-soft);
-  padding: 0.7rem 0;
+.link-btn {
+  appearance: none; background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: var(--forest); text-decoration: underline;
+  text-underline-offset: 2px;
 }
-details > summary {
-  cursor: pointer; font-size: 0.875rem; color: var(--ink-mid);
-  list-style: none; display: flex; align-items: center; gap: 0.5rem;
-}
-details > summary::-webkit-details-marker { display: none; }
-details > summary::before {
-  content: "+"; font-size: 0.95rem; color: var(--ink-dim);
-  width: 0.9rem; display: inline-block;
-}
-details[open] > summary::before { content: "\2013"; }
-details > summary:hover { color: var(--ink); }
-.detail-body { padding: 0.7rem 0 0.2rem 1.4rem; font-size: 0.85rem; }
+.link-btn:hover { color: var(--forest-hover); }
 
-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+/* --- lists: activity, reports, campaigns --------------------------------- */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li {
+  display: flex; gap: var(--s4); padding: var(--s3) 0;
+  border-top: 1px solid var(--rule-soft); font-size: 0.9375rem;
+}
+.timeline li:first-child { border-top: 0; }
+.timeline time {
+  flex: 0 0 4.5rem; color: var(--ink-faint); font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.timeline .what { min-width: 0; }
+.timeline .what b { font-weight: 500; }
+.timeline .what span { display: block; color: var(--ink-soft); font-size: 0.875rem; }
+.timeline li.problem .what b { color: var(--red); }
+
+table { width: 100%; border-collapse: collapse; }
 th {
-  text-align: left; font-weight: 560; color: var(--ink-dim);
-  padding: 0.3rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--line);
-  font-size: 0.76rem;
+  text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--ink-soft);
+  letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 0 var(--s3) var(--s2) 0; border-bottom: 1px solid var(--rule);
 }
-td { padding: 0.3rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--line-soft);
-     vertical-align: top; }
-td.mono, .mono {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.78rem;
+td {
+  padding: var(--s3) var(--s3) var(--s3) 0; border-bottom: 1px solid var(--rule-soft);
+  font-size: 0.9375rem; vertical-align: top;
 }
-.verdict-forbid { color: var(--red-key); font-weight: 600; }
-.verdict-permit { color: var(--ink-dim); }
+tr:last-child td { border-bottom: 0; }
+tbody tr.clickable { cursor: pointer; }
+tbody tr.clickable:hover { background: var(--surface-warm); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.step { padding: 0.45rem 0; border-bottom: 1px solid var(--line-soft); }
-.step:last-child { border-bottom: 0; }
-.step b { font-weight: 560; font-size: 0.83rem; }
-.step .tools { color: var(--ink-dim); font-size: 0.78rem; }
-.step .missing { color: var(--amber-key); font-size: 0.78rem; }
+/* Urgency: a word and a colour, never a colour alone. */
+.band {
+  display: inline-block; font-size: 0.75rem; font-weight: 600;
+  letter-spacing: 0.02em; padding: 0.1rem var(--s2); border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+.band-black { background: #F2DEDB; color: var(--band-black); }
+.band-red   { background: var(--red-tint); color: var(--band-red); }
+.band-amber { background: var(--amber-tint); color: var(--band-amber); }
+.band-green { background: var(--forest-tint); color: var(--band-green); }
 
-/* --- composer, empty, toast --------------------------------------------- */
-.composer textarea {
-  width: 100%; min-height: 5.5rem; resize: vertical; font: inherit; font-size: 0.9rem;
-  border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 0.8rem;
-  background: var(--surface); color: var(--ink);
+.status {
+  display: inline-block; font-size: 0.8125rem; color: var(--ink-soft);
+  border: 1px solid var(--rule); border-radius: var(--r-sm);
+  padding: 0.05rem var(--s2);
 }
-.composer .row { display: flex; gap: 0.5rem; margin-top: 0.55rem; flex-wrap: wrap; }
-.composer input {
-  font: inherit; font-size: 0.85rem; padding: 0.4rem 0.55rem; width: 9rem;
-  border: 1px solid var(--line); border-radius: 7px;
-  background: var(--surface); color: var(--ink);
-}
-.empty {
-  border: 1px dashed var(--line); border-radius: var(--radius);
-  padding: 1.5rem 1.3rem; color: var(--ink-mid); font-size: 0.92rem;
-}
-.empty b { display: block; color: var(--ink); font-weight: 560; margin-bottom: 0.3rem; }
+.status-review { color: var(--amber); border-color: #E5D3B0; background: var(--amber-tint); }
+.status-problem { color: var(--red); border-color: #E3C4BF; background: var(--red-tint); }
 
+/* --- review screen: a briefing, two columns ------------------------------ */
+.review { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--s6); }
+@media (max-width: 60rem) { .review { grid-template-columns: 1fr; gap: var(--s5); } }
+
+.brief h3 {
+  font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding-bottom: var(--s2); margin: var(--s6) 0 var(--s3);
+  border-bottom: 1px solid var(--rule);
+}
+.brief h3:first-child { margin-top: 0; }
+.brief p { max-width: var(--measure); color: var(--ink-mid); }
+
+.uncertain { margin: 0; padding: 0; list-style: none; }
+.uncertain li {
+  padding: var(--s2) 0 var(--s2) var(--s4); position: relative;
+  color: var(--ink-mid); max-width: var(--measure); font-size: 0.9375rem;
+}
+.uncertain li::before {
+  content: ""; position: absolute; left: 0; top: 1.05em;
+  width: 6px; height: 1px; background: var(--ink-faint);
+}
+
+.compose {
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: var(--r-lg); padding: var(--s5); position: sticky; top: var(--s4);
+}
+@media (max-width: 60rem) { .compose { position: static; } }
+.compose .to {
+  font-size: 0.875rem; color: var(--ink-soft);
+  padding-bottom: var(--s3); margin-bottom: var(--s3);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.compose .to b { color: var(--ink); font-weight: 500; }
+
+/* The message someone will read aloud to a frightened person. */
+textarea.message {
+  width: 100%; min-height: 11rem; resize: vertical;
+  font: 400 1.0625rem/1.65 var(--serif); color: var(--ink);
+  background: var(--surface-warm);
+  border: 1px solid var(--rule); border-radius: var(--r-md);
+  padding: var(--s4);
+}
+textarea.message:read-only { background: var(--sunk); color: var(--ink-mid); }
+
+.notice {
+  margin-top: var(--s3); padding: var(--s3);
+  border-radius: var(--r-sm); font-size: 0.875rem;
+  border: 1px solid var(--rule); background: var(--surface-warm); color: var(--ink-mid);
+}
+.notice-amber { border-color: #E5D3B0; background: var(--amber-tint); color: var(--amber); }
+.notice-red { border-color: #E3C4BF; background: var(--red-tint); color: var(--red); }
+.notice-forest { border-color: #BFD4C9; background: var(--forest-tint); color: var(--forest); }
+
+.compose-actions {
+  display: flex; gap: var(--s3); flex-wrap: wrap; align-items: center;
+  margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--rule-soft);
+}
+
+/* --- report body: untrusted text ----------------------------------------- */
+.report-body {
+  font-size: 0.9375rem; line-height: 1.6; color: var(--ink-mid);
+  background: var(--surface-warm); border-left: 2px solid var(--rule);
+  padding: var(--s3) var(--s4); border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+/* --- empty / loading / error --------------------------------------------- */
+.state {
+  border: 1px solid var(--rule); border-radius: var(--r-lg);
+  background: var(--surface); padding: var(--s6) var(--s5);
+  max-width: var(--measure);
+}
+.state h3 { font-family: var(--serif); font-weight: 500; font-size: 1.1875rem; margin-bottom: var(--s2); }
+.state p { color: var(--ink-mid); margin-bottom: var(--s4); }
+.state p:last-child { margin-bottom: 0; }
+.state-error { border-color: #E3C4BF; }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--sunk) 25%, #E6E3DA 37%, var(--sunk) 63%);
+  background-size: 400% 100%; border-radius: var(--r-sm);
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+@keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+.skeleton-line { height: 0.75rem; margin-bottom: var(--s2); }
+
+/* --- folded technical detail --------------------------------------------- */
+details.fold { border-top: 1px solid var(--rule-soft); }
+details.fold > summary {
+  cursor: pointer; list-style: none; padding: var(--s3) 0;
+  font-size: 0.9375rem; color: var(--ink-mid);
+  display: flex; align-items: center; gap: var(--s2);
+}
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before {
+  content: ""; width: 0; height: 0; flex: none;
+  border-left: 5px solid var(--ink-faint);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transition: transform 120ms ease;
+}
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold > summary:hover { color: var(--ink); }
+.fold-body { padding: 0 0 var(--s4) var(--s4); }
+
+/* --- mode strip: consistent, understated, always present ----------------- */
+.modes {
+  border-top: 1px solid var(--rule); margin-top: var(--s8);
+  padding-top: var(--s4); display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4);
+  font-size: 0.8125rem; color: var(--ink-soft);
+}
+.modes .mode { display: inline-flex; align-items: center; gap: var(--s2); }
+.modes .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); flex: none; }
+.modes .mode.live .dot { background: var(--forest); }
+.modes .mode.warn .dot { background: var(--amber); }
+
+/* --- dialog -------------------------------------------------------------- */
+dialog {
+  border: 1px solid var(--rule); border-radius: var(--r-lg); padding: 0;
+  max-width: 34rem; width: calc(100vw - 2rem); color: var(--ink);
+  background: var(--surface); box-shadow: 0 16px 40px rgba(32, 45, 39, 0.18);
+}
+dialog::backdrop { background: rgba(32, 45, 39, 0.32); }
+.dialog-in { padding: var(--s5); }
+.dialog-in h3 { font-family: var(--serif); font-weight: 500; font-size: 1.25rem; margin-bottom: var(--s3); }
+.dialog-in p { color: var(--ink-mid); margin-bottom: var(--s4); }
+.dialog-actions { display: flex; gap: var(--s3); justify-content: flex-end; flex-wrap: wrap; }
+
+/* --- toast --------------------------------------------------------------- */
 #toast {
-  position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%) translateY(1rem);
-  background: var(--ink); color: var(--paper); padding: 0.6rem 1rem; border-radius: 8px;
-  font-size: 0.87rem; opacity: 0; pointer-events: none;
-  transition: opacity 160ms ease, transform 160ms ease; max-width: 90vw; z-index: 50;
+  position: fixed; left: 50%; bottom: var(--s5); transform: translateX(-50%);
+  background: var(--ink); color: var(--paper);
+  padding: var(--s3) var(--s4); border-radius: var(--r-md);
+  font-size: 0.9375rem; max-width: calc(100vw - 2rem); z-index: 60;
+  opacity: 0; pointer-events: none; transition: opacity 160ms ease;
 }
-#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-#toast.bad { background: var(--red-key); }
+#toast[data-show="1"] { opacity: 1; }
+#toast[data-tone="bad"] { background: var(--red); color: #fff; }
 
-.sr {
-  position: absolute; width: 1px; height: 1px; overflow: hidden;
-  clip: rect(0 0 0 0); white-space: nowrap;
+/* Newly added evidence: acknowledged once, quietly, then left alone. */
+@keyframes settle {
+  from { background: var(--forest-tint); }
+  to   { background: transparent; }
 }
-footer {
-  margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line-soft);
-  font-size: 0.78rem; color: var(--ink-dim);
+.is-new { animation: settle 2.4s ease-out 1; }
+
+/* --- narrow screens ------------------------------------------------------ */
+@media (max-width: 40rem) {
+  .masthead-in { flex-wrap: wrap; gap: var(--s2) var(--s3); padding: var(--s3) var(--s4); }
+  .workspace { padding-left: 0; border-left: 0; flex-basis: 100%; order: 3; }
+  .account { margin-left: auto; }
+  .account label { display: none; }
+  .tabs-in, main { padding-left: var(--s4); padding-right: var(--s4); }
+  main { padding-top: var(--s5); }
+  .decision, .compose, .state { padding: var(--s4); }
+  .evidence-inline li { flex-direction: column; gap: var(--s1); }
+  .evidence-inline .k { flex-basis: auto; }
+  .timeline li { gap: var(--s3); }
+  .timeline time { flex-basis: 3.75rem; }
+  .not-sent { margin-left: 0; flex-basis: 100%; }
 }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="header-in">
-    <h1 class="mark">Porchlight</h1>
-    <div class="who">
+<header class="masthead">
+  <div class="masthead-in">
+    <a class="wordmark" href="#/inbox" aria-label="Porchlight, home">
+      <!-- Porch lamp. One mark, drawn once, monochrome-safe: the flame is a
+           filled shape rather than a colour, so it survives being printed. -->
+      <svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true" fill="none">
+        <path d="M11 1.5 L18.5 7.5 V9 H3.5 V7.5 Z" stroke="currentColor"
+              stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M5 9 h12 l-1.4 9.2 a1 1 0 0 1 -1 .8 h-7.2 a1 1 0 0 1 -1 -.8 Z"
+              stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M11 11.4 c1.5 1.5 2 2.5 2 3.5 a2 2 0 1 1 -4 0 c0 -1 .5 -2 2 -3.5 Z"
+              fill="currentColor"/>
+        <path d="M8.6 22.5 h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span>Porchlight</span>
+    </a>
+
+    <div class="workspace">
+      <b id="workspace-name">—</b>
+      <span class="synthetic" id="workspace-kind">synthetic workspace</span>
+    </div>
+
+    <div class="account">
       <label for="who">Signed in as</label>
-      <input id="who" value="Priya Nair" aria-label="Coordinator name, recorded on every approval">
+      <input id="who" value="Priya Nair" autocomplete="name"
+             aria-label="Your name. Recorded on every approval.">
     </div>
   </div>
-  <div class="modes" id="modes"></div>
 </header>
 
-<main class="wrap">
+<nav class="tabs" aria-label="Sections">
+  <div class="tabs-in" id="tabs" role="tablist"></div>
+</nav>
 
-  <!-- 1. what happened while nobody was watching -->
-  <div class="away" id="away" aria-live="polite">
-    <p class="lede" id="away-lede">Loading&hellip;</p>
-    <div class="tallies" id="tallies"></div>
-  </div>
-
-  <!-- 2. what needs a person -->
-  <section aria-labelledby="decisions-h">
-    <h2 id="decisions-h">Needs you</h2>
-    <p class="sub" id="decisions-sub">Porchlight stops here and asks.</p>
-    <div id="decisions"></div>
-  </section>
-
-  <!-- 3. everything else -->
-  <section aria-labelledby="cases-h">
-    <h2 id="cases-h">Who to call first</h2>
-    <p class="sub">Ordered by how long until the money cannot be got back.</p>
-    <ol class="cases" id="cases"></ol>
-  </section>
-
-  <!-- 4. add a report -->
-  <section aria-labelledby="add-h" class="composer">
-    <h2 id="add-h">Add a report</h2>
-    <p class="sub">Paste what the resident described. Porchlight takes it from there.</p>
-    <textarea id="artefact" aria-label="What the resident reported"
-      placeholder="A man rang saying he was from customs. He said a parcel in her name had drugs in it and she would be arrested unless she paid. He told her to send money to payee042@ybl and to call +91 90000 00042. He said not to tell her family."></textarea>
-    <div class="row">
-      <input id="reporter" placeholder="reporter" aria-label="Reporter pseudonym" value="resident-204">
-      <input id="area" placeholder="area" aria-label="Reporter area" value="411038">
-      <button class="primary" id="send-report">Add report</button>
-      <button class="quiet" id="seed">Load prior reports</button>
-      <button class="quiet" id="reset">Reset demo</button>
-    </div>
-  </section>
-
-  <!-- 5. the technical truth, folded away -->
-  <section aria-labelledby="under-h">
-    <h2 id="under-h">Underneath</h2>
-    <p class="sub">Everything Porchlight did, and everything it was refused.</p>
-
-    <details id="d-campaigns">
-      <summary>Campaigns and why these reports were linked</summary>
-      <div class="detail-body" id="campaigns"></div>
-    </details>
-
-    <details id="d-audit">
-      <summary>Policy decisions <span id="deny-count"></span></summary>
-      <div class="detail-body">
-        <div style="margin-bottom:.6rem">
-          <button class="small" id="deny-filter" aria-pressed="false">Show denied only</button>
-        </div>
-        <div id="audit"></div>
-      </div>
-    </details>
-
-    <details id="d-outbox">
-      <summary>Sandbox outbox</summary>
-      <div class="detail-body" id="outbox"></div>
-    </details>
-
-    <details id="d-jobs">
-      <summary>Processing</summary>
-      <div class="detail-body" id="jobs"></div>
-    </details>
-  </section>
-
-  <footer>
-    Synthetic data. Nothing here is a real report, a real resident, or a real
-    message. Porchlight has no way to send anything to anyone.
-  </footer>
+<main id="main" tabindex="-1">
+  <div id="view" aria-live="polite" aria-busy="true"></div>
+  <div class="modes" id="modes"></div>
 </main>
+
+<dialog id="confirm">
+  <div class="dialog-in">
+    <h3 id="confirm-title">Approve sandbox delivery</h3>
+    <p id="confirm-body"></p>
+    <div class="dialog-actions">
+      <button class="btn" data-close>Go back</button>
+      <button class="btn btn-primary" id="confirm-go">Approve sandbox delivery</button>
+    </div>
+  </div>
+</dialog>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
 "use strict";
 
+/* ===========================================================================
+   State and helpers
+   =========================================================================== */
 const $ = (id) => document.getElementById(id);
+
+/* Every string from the backend that ends up in the DOM goes through this.
+   Report bodies are written by fraudsters; they are content, never markup. */
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-let state = { inbox: null, denyOnly: false, edited: new Set() };
+const state = {
+  route: { name: "inbox", param: null },
+  inbox: null,
+  loading: false,
+  error: null,
+  /* Scroll offsets per route, so returning from a report lands where you left. */
+  scroll: {},
+  /* Draft text the coordinator has typed, kept across refreshes and failures. */
+  drafts: {},
+  seenEvidence: new Set(),
+  lastCounts: null,
+  approving: new Set(),
+};
 
-function who() { return $("who").value.trim() || "coordinator"; }
+function who() { return ($("who").value || "").trim() || "coordinator"; }
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -424,360 +578,802 @@ async function api(path, opts = {}) {
     headers: { "content-type": "application/json", "X-Coordinator": who(), ...(opts.headers || {}) },
   });
   let body = null;
-  try { body = await res.json(); } catch { body = null; }
+  try { body = await res.json(); } catch { /* empty or non-JSON body */ }
   return { ok: res.ok, status: res.status, body };
 }
 
-function toast(msg, bad = false) {
-  const t = $("toast");
-  t.textContent = msg;
-  t.classList.toggle("bad", bad);
-  t.classList.add("show");
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove("show"), 4200);
+let toastTimer;
+function toast(message, tone = "ok") {
+  const el = $("toast");
+  el.textContent = message;
+  el.dataset.tone = tone;
+  el.dataset.show = "1";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.dataset.show = "0"; }, 5000);
 }
 
-async function busy(btn, label, fn) {
-  const original = btn.textContent;
-  btn.disabled = true; btn.textContent = label;
-  try { await fn(); } finally { btn.disabled = false; btn.textContent = original; }
+/* Button loading state that says what is happening and cannot be double-fired. */
+async function withPending(btn, label, fn) {
+  if (btn.dataset.pending === "1") return;
+  const original = btn.innerHTML;
+  btn.dataset.pending = "1";
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner" aria-hidden="true"></span>${esc(label)}`;
+  try { return await fn(); }
+  finally {
+    btn.dataset.pending = "0";
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
 }
 
-/* --------------------------------------------------------------------- */
-function renderModes(modes) {
-  const order = ["model", "tools", "delivery", "policy_backend", "ingest", "auth", "pack"];
-  $("modes").innerHTML = order
-    .filter((k) => modes[k])
-    .map((k) => `<span class="mode${k === "delivery" ? " sandbox" : ""}">${esc(modes[k])}</span>`)
-    .join("");
+const fmtTime = (iso) => {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  } catch { return ""; }
+};
+const fmtDate = (iso) => {
+  try {
+    return new Date(iso).toLocaleDateString([], { day: "numeric", month: "short" });
+  } catch { return ""; }
+};
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/* Hours to irreversible loss. Unknown stays unknown — inventing a number here
+   would put a figure nobody measured at the top of a triage list. */
+function hoursText(h) {
+  if (h === null || h === undefined) return `<span style="color:var(--ink-faint)">Unknown</span>`;
+  if (h <= 0) return "Now";
+  if (h < 1) return "Under an hour";
+  return `${Math.round(h)} hours`;
 }
 
-/* The relief line. Written as a sentence because a person reads it, not a
-   dashboard. Numbers repeat below for scanning. */
-function renderAway(h) {
-  const bits = [];
-  if (h.processed) bits.push(`worked through ${h.processed} report${h.processed === 1 ? "" : "s"}`);
-  if (h.duplicates_folded) bits.push(`folded in ${h.duplicates_folded} repeat${h.duplicates_folded === 1 ? "" : "s"}`);
-  if (h.cases_merged) bits.push(`added detail to ${h.cases_merged} open case${h.cases_merged === 1 ? "" : "s"}`);
-  if (h.campaigns_found) bits.push(`spotted ${h.campaigns_found} campaign${h.campaigns_found === 1 ? "" : "s"}`);
-
-  $("away-lede").textContent = bits.length
-    ? `Since you last looked, Porchlight ${bits.join(", ").replace(/, ([^,]*)$/, " and $1")}.`
-    : "Nothing has come in since you last looked.";
-
-  const tallies = [
-    ["processed", "reports handled"],
-    ["duplicates_folded", "repeats folded in"],
-    ["needs_review", "need a look"],
-    ["campaigns_found", "campaigns"],
-    ["failed", "failed"],
-  ];
-  $("tallies").innerHTML = tallies
-    .filter(([k]) => h[k] || k === "processed")
-    .map(([k, label]) => `<div class="tally"><b>${h[k]}</b><span>${label}</span></div>`)
-    .join("");
+/* Indicator keys are machine strings; a coordinator reads English. */
+function describeIndicator(key) {
+  const [kind, ...rest] = String(key).split(":");
+  const value = rest.join(":");
+  const label = {
+    phone: "Callback number", upi: "Payment destination", crypto: "Wallet address",
+    url: "Link", acct: "Account", email: "Email address", domain: "Domain",
+  }[kind] || kind;
+  return { label, value };
 }
 
-function evidenceRows(ev) {
-  const rows = [];
-  (ev.shared_indicators || []).forEach((key) => {
-    const [kind, ...rest] = String(key).split(":");
-    const label = { phone: "same callback number", upi: "same payment handle",
-                    crypto: "same wallet", url: "same link", acct: "same account" }[kind]
-                  || `same ${kind}`;
-    rows.push([label, rest.join(":")]);
+/* ===========================================================================
+   Routing
+   =========================================================================== */
+const ROUTES = [
+  { name: "inbox", label: "Decision inbox", badge: (d) => d?.decisions?.length || 0 },
+  { name: "reports", label: "Reports", badge: (d) => d?.cases?.length || 0 },
+  { name: "campaigns", label: "Campaigns", badge: (d) => d?.campaigns?.length || 0 },
+  { name: "activity", label: "Activity", badge: () => 0 },
+];
+
+function parseHash() {
+  const raw = (location.hash || "#/inbox").replace(/^#\/?/, "");
+  const [name, param] = raw.split("/");
+  const known = ROUTES.some((r) => r.name === name) || name === "review" || name === "case";
+  return { name: known && name ? name : "inbox", param: param || null };
+}
+
+function go(hash) { location.hash = hash; }
+
+window.addEventListener("hashchange", () => {
+  state.scroll[routeKey(state.route)] = window.scrollY;
+  state.route = parseHash();
+  render();
+  restoreScroll();
+});
+
+function routeKey(route) { return `${route.name}/${route.param || ""}`; }
+
+function restoreScroll() {
+  const y = state.scroll[routeKey(state.route)];
+  window.scrollTo({ top: y || 0, behavior: "auto" });
+}
+
+/* ===========================================================================
+   Data
+   =========================================================================== */
+async function loadInbox({ markSeen = true, quiet = false } = {}) {
+  if (!quiet) { state.loading = true; render(); }
+  const { ok, body, status } = await api(`/inbox?mark_seen=${markSeen}`);
+  state.loading = false;
+  if (!ok) {
+    state.error = status === 0
+      ? "Porchlight is not responding."
+      : `Porchlight returned an error (${status}).`;
+    render();
+    return;
+  }
+  state.error = null;
+
+  /* Only claim an update when one actually happened. */
+  const counts = JSON.stringify({
+    d: body.decisions.length, c: body.cases.length,
+    k: body.campaigns.length, t: body.totals.processed,
   });
-  if (ev.script_fingerprint) rows.push(["same script", ev.script_fingerprint]);
-  if (ev.distinct_reporters) rows.push(["different residents", String(ev.distinct_reporters)]);
-  if ((ev.areas || []).length) rows.push(["area", ev.areas.join(", ")]);
-  return rows.map(([what, val]) =>
-    `<li><span class="what">${esc(what)}</span><span class="val">${esc(val)}</span></li>`).join("");
-}
-
-function renderDecisions(decisions) {
-  const host = $("decisions");
-  if (!decisions.length) {
-    $("decisions-sub").textContent = "Porchlight stops here and asks.";
-    host.innerHTML = `<div class="empty"><b>Nothing needs you right now.</b>
-      Porchlight is still taking reports and will interrupt when something
-      warrants it.</div>`;
-    return;
-  }
-  $("decisions-sub").textContent = decisions.length === 1
-    ? "One thing. Porchlight has prepared it; the decision is yours."
-    : `${decisions.length} things. Porchlight has prepared them; the decisions are yours.`;
-
-  host.innerHTML = decisions.map((d) => `
-    <article class="decision" data-id="${esc(d.decision_id)}">
-      <h3>${esc(d.title)}</h3>
-      <p class="because">${esc(d.rationale)}</p>
-      <ul class="evidence">${evidenceRows(d.evidence || {})}</ul>
-      <p class="draft-label">Message to ${esc(d.audience)}</p>
-      <textarea class="draft" aria-label="Message to residents, editable"
-        >${esc(d.body)}</textarea>
-      <p class="edited-note" data-note="${esc(d.decision_id)}">
-        Edited. Approving will send this new wording; the earlier text is not approved.
-      </p>
-      <div class="actions">
-        <button class="primary" data-act="approve">Approve and send</button>
-        <button data-act="save">Save wording</button>
-        <button class="quiet" data-act="reject">Not now</button>
-      </div>
-      <p class="sends-to">Goes to the sandbox outbox. Porchlight cannot send to a real person.</p>
-    </article>`).join("");
-}
-
-function hoursLabel(h) {
-  if (h === null || h === undefined) return `<span class="hours unknown">unknown</span>`;
-  if (h === 0) return `<span class="hours">now</span>`;
-  return `<span class="hours">${h < 1 ? "&lt;1h" : Math.round(h) + "h"}</span>`;
-}
-
-function renderCases(cases) {
-  const host = $("cases");
-  if (!cases.length) {
-    host.innerHTML = `<li><div class="empty"><b>No cases yet.</b>
-      Add a report below, or load the coalition's prior reports to give
-      Porchlight something to correlate against.</div></li>`;
-    return;
-  }
-  host.innerHTML = cases.map((c) => `
-    <li>
-      <button class="case-row" data-case="${esc(c.case_id)}">
-        <span class="band ${esc(c.urgency)}">${esc(c.urgency)}</span>
-        ${hoursLabel(c.hours_to_irreversible)}
-        <span class="case-what">
-          <b>${esc(c.script_fingerprint || "not yet classified")}</b>
-          <small>${esc(c.reporter)}${c.area ? " &middot; " + esc(c.area) : ""}${
-            c.report_count > 1 ? ` &middot; ${c.report_count} reports` : ""} &mdash; ${esc(c.summary || "")}</small>
-        </span>
-        ${c.campaign_id ? '<span class="flag">campaign</span>' : ""}
-        ${c.state === "awaiting_human" ? '<span class="flag">needs a look</span>' : ""}
-      </button>
-      <div class="detail-body" data-detail="${esc(c.case_id)}" hidden></div>
-    </li>`).join("");
-}
-
-function renderCampaigns(campaigns) {
-  $("campaigns").innerHTML = campaigns.length
-    ? campaigns.map((c) => `
-      <div style="margin-bottom:1rem">
-        <b>${esc(c.label || c.campaign_id)}</b>
-        <div style="color:var(--ink-mid);font-size:.82rem;margin:.15rem 0 .4rem">
-          ${c.report_count} reports from ${c.distinct_reporters} residents over
-          ${c.span_days} day${c.span_days === 1 ? "" : "s"}${
-            c.areas.length ? ", in " + esc(c.areas.join(", ")) : ""}.
-          Confidence ${c.confidence}.
-        </div>
-        <ul class="evidence">${evidenceRows({
-          shared_indicators: c.shared_indicators,
-          script_fingerprint: (c.script_fingerprints || [])[0],
-        })}</ul>
-        <div class="mono" style="color:var(--ink-dim);margin-top:.35rem">
-          ${esc(c.report_ids.join(", "))}
-        </div>
-      </div>`).join("")
-    : `<p style="color:var(--ink-dim);margin:0">No campaign has cleared the evidence
-       threshold. Reports that merely look similar are not a campaign.</p>`;
-}
-
-function renderAudit(events) {
-  $("audit").innerHTML = events.length
-    ? `<table><thead><tr><th>Rule</th><th>Action</th><th>Who</th><th>Why</th></tr></thead>
-       <tbody>${events.map((e) => `
-        <tr>
-          <td class="${e.effect === "forbid" ? "verdict-forbid" : "verdict-permit"}">
-            ${e.effect === "forbid" ? "DENIED" : "allowed"} ${esc(e.policy_id)}</td>
-          <td class="mono">${esc(e.action)}</td>
-          <td>${esc(e.actor || "—")}${
-            e.origin === "untrusted-content" ? '<br><span class="flag">from report text</span>' : ""}</td>
-          <td>${esc(e.reason)}</td>
-        </tr>`).join("")}</tbody></table>`
-    : `<p style="color:var(--ink-dim);margin:0">Nothing recorded yet.</p>`;
-}
-
-function renderOutbox(box) {
-  $("outbox").innerHTML = box.messages.length
-    ? box.messages.map((m) => `
-        <div style="margin-bottom:.9rem">
-          <div style="font-size:.79rem;color:var(--ink-dim)">
-            ${esc(m.channel)} to ${esc(m.audience)} &mdash; released by ${esc(m.approver)}
-          </div>
-          <div style="font-family:Georgia,serif;margin-top:.25rem">${esc(m.body)}</div>
-        </div>`).join("")
-    : `<p style="color:var(--ink-dim);margin:0">Nothing has been released. Drafting is not sending.</p>`;
-}
-
-function renderJobs(inbox) {
-  const j = inbox.jobs || {};
-  const failed = inbox.failed_jobs || [];
-  $("jobs").innerHTML = `
-    <p style="margin:0 0 .5rem">
-      Background worker ${inbox.worker_running ? "running" : "stopped"}.
-      ${Object.entries(j).map(([k, v]) => `${v} ${k}`).join(", ") || "no jobs yet"}.
-    </p>
-    ${failed.length ? `<table><thead><tr><th>Job</th><th>Error</th></tr></thead><tbody>
-      ${failed.map((f) => `<tr><td class="mono">${esc(f.idempotency_key.slice(0, 10))}</td>
-        <td>${esc(f.last_error)}</td></tr>`).join("")}</tbody></table>`
-      : `<p style="color:var(--ink-dim);margin:0">No failures.</p>`}`;
-}
-
-/* --------------------------------------------------------------------- */
-async function refresh(markSeen = true) {
-  const { ok, body } = await api(`/inbox?mark_seen=${markSeen}`);
-  if (!ok || !body) {
-    $("away-lede").textContent = "Cannot reach Porchlight. Is the server running?";
-    return;
-  }
+  body._changed = state.lastCounts !== null && state.lastCounts !== counts;
+  state.lastCounts = counts;
   state.inbox = body;
-  renderModes(body.modes);
-  renderAway(body.handled_while_away);
-  renderDecisions(body.decisions);
-  renderCases(body.cases);
-  renderCampaigns(body.campaigns);
-  renderJobs(body);
-
-  const audit = await api(`/audit?limit=60${state.denyOnly ? "&effect=forbid" : ""}`);
-  if (audit.ok) {
-    renderAudit(audit.body.events);
-    $("deny-count").textContent = audit.body.denials
-      ? `(${audit.body.denials} denied)` : "";
-  }
-  const outbox = await api("/outbox");
-  if (outbox.ok) renderOutbox(outbox.body);
+  render();
 }
 
-/* --- interactions ------------------------------------------------------ */
-$("decisions").addEventListener("input", (e) => {
-  if (!e.target.classList.contains("draft")) return;
-  const id = e.target.closest(".decision").dataset.id;
-  document.querySelector(`[data-note="${id}"]`)?.classList.add("show");
-});
+/* ===========================================================================
+   Shell rendering
+   =========================================================================== */
+function renderTabs() {
+  const d = state.inbox;
+  $("tabs").innerHTML = ROUTES.map((r) => {
+    const n = r.badge(d);
+    const current = state.route.name === r.name
+      || (state.route.name === "review" && r.name === "inbox")
+      || (state.route.name === "case" && r.name === "reports");
+    return `<button class="tab" role="tab" data-route="${r.name}"
+              ${current ? 'aria-current="page"' : ""}>${esc(r.label)}${
+      n ? `<span class="count">${n}</span>` : ""}</button>`;
+  }).join("");
+}
 
-$("decisions").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-act]");
-  if (!btn) return;
-  const card = btn.closest(".decision");
-  const id = card.dataset.id;
-  const body = card.querySelector(".draft").value;
-  const act = btn.dataset.act;
+function renderModes() {
+  const m = state.inbox?.modes;
+  if (!m) { $("modes").innerHTML = ""; return; }
+  const live = m.model && m.model.startsWith("Live");
+  const rows = [
+    { text: m.model, cls: live ? "live" : "" },
+    { text: m.tools, cls: "" },
+    { text: m.delivery, cls: "warn" },
+    { text: m.policy_backend, cls: "" },
+    { text: m.auth, cls: "warn" },
+    { text: `Jurisdiction: ${m.pack}`, cls: "" },
+  ];
+  $("modes").innerHTML = rows.filter((r) => r.text).map((r) =>
+    `<span class="mode ${r.cls}"><span class="dot" aria-hidden="true"></span>${esc(r.text)}</span>`
+  ).join("");
+}
 
-  if (act === "save") {
-    await busy(btn, "Saving", async () => {
-      const r = await api(`/decisions/${id}`, { method: "PATCH", body: JSON.stringify({ body }) });
-      toast(r.ok ? "Wording saved. This is what will be sent." : "Could not save.", !r.ok);
-      if (r.ok) document.querySelector(`[data-note="${id}"]`)?.classList.remove("show");
+/* ===========================================================================
+   Views
+   =========================================================================== */
+function viewLoading() {
+  return `<div aria-label="Loading">
+    <div class="skeleton skeleton-line" style="width:18rem;height:2rem;margin-bottom:1rem"></div>
+    <div class="skeleton skeleton-line" style="width:26rem"></div>
+    <div class="skeleton" style="height:12rem;margin-top:2rem;border-radius:10px"></div>
+  </div>`;
+}
+
+function viewError() {
+  return `<div class="state state-error">
+    <h3>Porchlight is not responding</h3>
+    <p>${esc(state.error)} Nothing has been lost — reports already received are
+       still queued, and any draft you were editing is kept.</p>
+    <button class="btn" data-act="retry">Try again</button>
+  </div>`;
+}
+
+/* --- 1. Decision inbox --------------------------------------------------- */
+function viewInbox() {
+  const d = state.inbox;
+  const h = d.handled_while_away;
+  const pending = d.decisions;
+
+  const summary = [];
+  if (h.processed) summary.push(`${plural(h.processed, "report", "reports")} processed`);
+  if (h.duplicates_folded) summary.push(`${plural(h.duplicates_folded, "repeat", "repeats")} folded in`);
+  if (h.needs_review) summary.push(`${plural(h.needs_review, "report needs", "reports need")} a closer look`);
+
+  const since = h.is_first_visit ? "since Porchlight started" : "since your last visit";
+  const line1 = summary.length
+    ? `${summary.join(", ").replace(/, ([^,]*)$/, " and $1")} ${since}.`
+    : `Nothing new ${since}.`;
+  const line2 = pending.length
+    ? `<strong>${plural(pending.length, "decision needs", "decisions need")} your review.</strong>`
+    : `No decisions waiting.`;
+
+  return `
+    <h1 class="page-title">Your community, caught up.</h1>
+    <p class="page-summary">${esc(line1)} ${line2}</p>
+
+    <section class="section" aria-labelledby="ready-h">
+      <div class="section-head">
+        <h2 id="ready-h">Ready for review</h2>
+        ${d._changed ? '<span class="aside">Updated just now</span>' : ""}
+      </div>
+      ${pending.length ? pending.map(decisionCard).join("") : emptyDecisions()}
+    </section>
+
+    <section class="section" aria-labelledby="handled-h">
+      <div class="section-head">
+        <h2 id="handled-h">Handled in the background</h2>
+        <span class="aside">${d.worker_running ? "Running now" : "Paused"}</span>
+      </div>
+      ${activityList(d.activity, 8)}
+      ${d.activity.length ? `<p style="margin-top:var(--s4)">
+        <button class="link-btn" data-route="activity">See all activity</button></p>` : ""}
+    </section>
+
+    ${demoTools()}
+  `;
+}
+
+function emptyDecisions() {
+  const total = state.inbox?.totals?.processed || 0;
+  return `<div class="state">
+    <h3>No decisions waiting</h3>
+    <p>${total
+      ? "Porchlight is working through reports as they arrive. It will interrupt you when reports from different people turn out to be connected."
+      : "Nothing has been reported yet. When reports arrive, Porchlight processes them here and asks you only when something needs a person."}</p>
+    ${total ? "" : `<button class="btn" data-act="seed">Load the example workspace</button>`}
+  </div>`;
+}
+
+function decisionCard(d) {
+  const ev = d.evidence || {};
+  const shared = (ev.shared_indicators || []).map(describeIndicator);
+  const rows = [
+    ...shared.map((s) => [s.label, s.value]),
+    ev.script_fingerprint ? ["Same story told", ev.script_fingerprint] : null,
+    ev.distinct_reporters ? ["People affected", `${ev.distinct_reporters} residents`] : null,
+    (ev.areas || []).length ? ["Area", ev.areas.join(", ")] : null,
+  ].filter(Boolean);
+
+  return `<article class="decision">
+    <h3>${esc(d.title)}</h3>
+    <p class="why">${esc(d.rationale)}</p>
+    <ul class="evidence-inline">
+      ${rows.map(([k, v]) => `<li><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></li>`).join("")}
+    </ul>
+    <p><button class="link-btn" data-review="${esc(d.decision_id)}">
+      View the ${plural((ev.member_report_ids || []).length || 0, "report", "reports")}</button></p>
+    <div class="decision-actions">
+      <button class="btn btn-primary" data-review="${esc(d.decision_id)}">Review warning</button>
+      <span class="not-sent">Draft only · Nothing has been sent.</span>
+    </div>
+  </article>`;
+}
+
+function activityList(events, limit) {
+  if (!events || !events.length) {
+    return `<p style="color:var(--ink-soft)">No activity recorded yet.</p>`;
+  }
+  return `<ul class="timeline">${events.slice(0, limit).map((e) => `
+    <li class="${e.is_problem ? "problem" : ""}">
+      <time datetime="${esc(e.at)}">${esc(fmtTime(e.at))}</time>
+      <div class="what">
+        <b>${esc(e.headline)}</b>
+        <span>${esc(e.detail)}</span>
+      </div>
+    </li>`).join("")}</ul>`;
+}
+
+/* --- 2. Review: a prepared briefing -------------------------------------- */
+async function viewReview(decisionId) {
+  const { ok, body, status } = await api(`/decision/${encodeURIComponent(decisionId)}`);
+  if (!ok) {
+    return `<div class="state state-error">
+      <h3>${status === 404 ? "That decision is no longer here" : "Could not open this decision"}</h3>
+      <p>${status === 404
+        ? "It may have been approved or set aside in another window."
+        : "Porchlight returned an error."}</p>
+      <button class="btn" data-route="inbox">Back to the inbox</button>
+    </div>`;
+  }
+
+  const d = body;
+  const ev = (d.campaign && {
+    shared: d.campaign.shared_indicators || [],
+    reporters: d.campaign.distinct_reporters,
+    areas: d.campaign.areas || [],
+    span: d.campaign.span_days,
+    script: (d.campaign.script_fingerprints || [])[0] || "",
+  }) || { shared: [], reporters: 0, areas: [], span: 0, script: "" };
+
+  const resolved = d.state !== "pending";
+  const draft = state.drafts[d.decision_id];
+  const bodyText = draft !== undefined ? draft : d.body;
+  const edited = draft !== undefined && draft.trim() !== d.body.trim();
+
+  return `
+    <p style="margin-bottom:var(--s4)">
+      <button class="link-btn" data-route="inbox">← Decision inbox</button>
+    </p>
+    <h1 class="page-title">${esc(d.title)}</h1>
+    <p class="page-summary">${esc(d.rationale)}</p>
+
+    <div class="review section">
+      <div class="brief">
+        <h3>Why these reports may be connected</h3>
+        ${ev.shared.length ? `<ul class="evidence-inline">
+          ${ev.shared.map((k) => {
+            const s = describeIndicator(k);
+            const isNew = !state.seenEvidence.has(k);
+            state.seenEvidence.add(k);
+            return `<li class="${isNew ? "is-new" : ""}">
+              <span class="k">${esc(s.label)}</span>
+              <span class="v">${esc(s.value)}</span></li>`;
+          }).join("")}
+        </ul>` : `<p>These reports are linked by the wording of the story told,
+                   not by a shared number or payment destination.</p>`}
+        ${ev.script ? `<p style="margin-top:var(--s3)">Each resident was told the same
+           thing: <em>${esc(ev.script)}</em>.</p>` : ""}
+        ${ev.reporters ? `<p style="margin-top:var(--s3)">${plural(ev.reporters, "resident", "residents")}
+           reported this over ${plural(ev.span || 1, "day", "days")}${
+             ev.areas.length ? `, in ${esc(ev.areas.join(", "))}` : ""}.</p>` : ""}
+
+        <h3>The reports</h3>
+        ${d.reports.length ? `<table>
+          <caption class="sr-only">Reports linked to this decision</caption>
+          <thead><tr><th scope="col">Received</th><th scope="col">Resident</th>
+            <th scope="col">Urgency</th><th scope="col">What was reported</th></tr></thead>
+          <tbody>${d.reports.map((r) => `
+            <tr><td class="num">${esc(fmtDate(r.received_at))} ${esc(fmtTime(r.received_at))}</td>
+              <td>${esc(r.reporter)}${r.area ? `<br><span style="color:var(--ink-faint);font-size:.875rem">${esc(r.area)}</span>` : ""}</td>
+              <td><span class="band band-${esc(r.urgency)}">${esc(r.urgency)}</span></td>
+              <td><div class="report-body">${esc(r.raw_content)}</div></td></tr>`).join("")}
+          </tbody></table>` : `<p>No linked reports were found for this decision.</p>`}
+
+        <h3>What we could not establish</h3>
+        <ul class="uncertain">
+          ${(d.uncertain || []).map((u) => `<li>${esc(u)}</li>`).join("")}
+        </ul>
+      </div>
+
+      <div>
+        <div class="compose">
+          <p class="to">To <b>${esc(d.audience)}</b><br>
+             Sandbox delivery — this does not reach a real phone.</p>
+
+          <label class="sr-only" for="message">Message to residents</label>
+          <textarea class="message" id="message" ${resolved ? "readonly" : ""}
+            data-decision="${esc(d.decision_id)}">${esc(bodyText)}</textarea>
+
+          ${resolved
+            ? `<p class="notice notice-forest">Approved by ${esc(d.resolved_by)} and delivered
+                 to the sandbox outbox.</p>`
+            : edited
+              ? `<p class="notice notice-amber" id="edit-note">Your changes need a new approval.</p>`
+              : `<p class="notice">Nothing has been sent.</p>`}
+
+          ${resolved ? "" : `<div class="compose-actions">
+            <button class="btn btn-primary" data-act="approve"
+              data-decision="${esc(d.decision_id)}">Approve sandbox delivery</button>
+            <button class="btn" data-act="save" data-decision="${esc(d.decision_id)}">Save draft</button>
+            <button class="btn btn-quiet" data-act="reject"
+              data-decision="${esc(d.decision_id)}">Not now</button>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* --- 3. Reports ---------------------------------------------------------- */
+function viewReports() {
+  const cases = state.inbox.cases;
+  if (!cases.length) {
+    return `<h1 class="page-title">Reports</h1>
+      <p class="page-summary">Everything the coalition has on file, most urgent first.</p>
+      <div class="state section"><h3>No reports yet</h3>
+        <p>When residents report something, it appears here with how long there is
+           to act.</p>
+        <button class="btn" data-act="seed">Load the example workspace</button></div>`;
+  }
+  return `
+    <h1 class="page-title">Reports</h1>
+    <p class="page-summary">Ordered by how long there is before the money cannot be
+      recovered — not by how likely each one is to be a scam.</p>
+    <div class="section">
+      <table>
+        <caption class="sr-only">Open cases, most urgent first</caption>
+        <thead><tr>
+          <th scope="col">Urgency</th><th scope="col">Time to act</th>
+          <th scope="col">What was reported</th><th scope="col">Resident</th>
+          <th scope="col">Status</th>
+        </tr></thead>
+        <tbody>${cases.map((c) => `
+          <tr class="clickable" data-case="${esc(c.case_id)}" tabindex="0" role="link"
+              aria-label="Open case for ${esc(c.reporter)}">
+            <td><span class="band band-${esc(c.urgency)}">${esc(c.urgency)}</span></td>
+            <td class="num">${hoursText(c.hours_to_irreversible)}</td>
+            <td>${esc(c.script_fingerprint || "Not yet classified")}
+              ${c.report_count > 1 ? `<br><span style="color:var(--ink-faint);font-size:.875rem">${c.report_count} reports on this case</span>` : ""}</td>
+            <td>${esc(c.reporter)}${c.area ? `<br><span style="color:var(--ink-faint);font-size:.875rem">${esc(c.area)}</span>` : ""}</td>
+            <td>${caseStatus(c)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function caseStatus(c) {
+  if (c.state === "awaiting_human") return `<span class="status status-review">Needs a look</span>`;
+  if (c.campaign_id) return `<span class="status">Connected to others</span>`;
+  if (c.state === "watching") return `<span class="status">Watching</span>`;
+  return `<span class="status">Open</span>`;
+}
+
+async function viewCase(caseId) {
+  const { ok, body, status } = await api(`/case/${encodeURIComponent(caseId)}`);
+  if (!ok) {
+    return `<div class="state state-error">
+      <h3>${status === 404 ? "That case is not here" : "Could not open this case"}</h3>
+      <p>It may have been merged into another case.</p>
+      <button class="btn" data-route="reports">Back to reports</button></div>`;
+  }
+  const c = body;
+  return `
+    <p style="margin-bottom:var(--s4)">
+      <button class="link-btn" data-route="reports">← Reports</button></p>
+    <h1 class="page-title">${esc(c.script_fingerprint || "Report")}</h1>
+    <p class="page-summary">${esc(c.summary || "")}</p>
+
+    <div class="section">
+      <ul class="evidence-inline">
+        <li><span class="k">Urgency</span><span class="v">
+          <span class="band band-${esc(c.urgency)}">${esc(c.urgency)}</span></span></li>
+        <li><span class="k">Time to act</span><span class="v">${hoursText(c.hours_to_irreversible)}</span></li>
+        <li><span class="k">Resident</span><span class="v">${esc(c.reporter)}</span></li>
+        ${c.area ? `<li><span class="k">Area</span><span class="v">${esc(c.area)}</span></li>` : ""}
+        ${c.impersonated_entity ? `<li><span class="k">Claimed to be</span><span class="v">${esc(c.impersonated_entity)}</span></li>` : ""}
+        ${c.money_rail && c.money_rail !== "none" ? `<li><span class="k">Payment asked for by</span><span class="v">${esc(c.money_rail.replace(/_/g, " "))}</span></li>` : ""}
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>What was reported</h2></div>
+      ${(c.reports || []).map((r) => `
+        <div style="margin-bottom:var(--s4)">
+          <p style="font-size:.875rem;color:var(--ink-faint);margin-bottom:var(--s2)">
+            ${esc(fmtDate(r.received_at))} ${esc(fmtTime(r.received_at))} · ${esc(r.channel)}
+            ${r.state === "duplicate" ? " · repeat of an earlier report" : ""}</p>
+          <div class="report-body">${esc(r.raw_content)}</div>
+        </div>`).join("")}
+    </div>
+
+    ${c.campaign ? `<div class="section">
+      <div class="section-head"><h2>Connected reports</h2></div>
+      <p>This report shares details with ${plural(c.campaign.report_count - 1, "other report", "other reports")}.
+         <button class="link-btn" data-route="campaigns">See the group</button></p>
+    </div>` : ""}`;
+}
+
+/* --- 4. Campaigns -------------------------------------------------------- */
+function viewCampaigns() {
+  const camps = state.inbox.campaigns;
+  if (!camps.length) {
+    return `<h1 class="page-title">Connected reports</h1>
+      <p class="page-summary">When reports from different residents share a callback
+        number, a payment destination or the same story, Porchlight groups them here.</p>
+      <div class="state section"><h3>Nothing connected yet</h3>
+        <p>Reports that merely look similar are not grouped. A group needs two shared
+           details, or one shared detail and the same story told.</p></div>`;
+  }
+  return `
+    <h1 class="page-title">Connected reports</h1>
+    <p class="page-summary">Groups of reports that share concrete details. Shared
+      details show reports are related — they do not establish who is responsible.</p>
+    ${camps.map((c) => `
+      <section class="section">
+        <div class="section-head">
+          <h2>${esc(c.label || "Group")}</h2>
+          <span class="aside">${plural(c.report_count, "report", "reports")} ·
+            ${plural(c.distinct_reporters, "resident", "residents")}</span>
+        </div>
+        <ul class="evidence-inline">
+          ${(c.shared_indicators || []).map((k) => {
+            const s = describeIndicator(k);
+            return `<li><span class="k">${esc(s.label)}</span><span class="v">${esc(s.value)}</span></li>`;
+          }).join("")}
+          ${(c.script_fingerprints || []).length ? `<li><span class="k">Same story told</span>
+            <span class="v">${esc(c.script_fingerprints[0])}</span></li>` : ""}
+          <li><span class="k">Over</span><span class="v">${plural(c.span_days || 1, "day", "days")}</span></li>
+          ${(c.areas || []).length ? `<li><span class="k">Areas</span>
+            <span class="v">${esc(c.areas.join(", "))}</span></li>` : ""}
+        </ul>
+        <details class="fold">
+          <summary>Which reports are in this group</summary>
+          <div class="fold-body">
+            <ul class="timeline">${(c.report_ids || []).map((id) =>
+              `<li><time>${esc(id)}</time><div class="what"></div></li>`).join("")}</ul>
+          </div>
+        </details>
+      </section>`).join("")}`;
+}
+
+/* --- 5. Activity --------------------------------------------------------- */
+async function viewActivity() {
+  const { ok, body } = await api("/activity?limit=80");
+  const audit = await api("/audit?limit=60&effect=forbid");
+  if (!ok) return viewError();
+
+  return `
+    <h1 class="page-title">Activity</h1>
+    <p class="page-summary">Everything Porchlight did, in the order it happened.</p>
+
+    <section class="section">
+      <div class="section-head"><h2>Work log</h2>
+        <span class="aside">${plural(body.count, "entry", "entries")}</span></div>
+      ${activityList(body.events, 80)}
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>Refused actions</h2>
+        <span class="aside">${audit.ok ? audit.body.denials : 0} in total</span></div>
+      <p class="page-summary" style="margin-bottom:var(--s4)">
+        Porchlight refuses anything that would contact a number or link taken from a
+        report, and anything that would reach a resident without your approval. Some
+        of these requests came from the text of reports themselves.</p>
+      ${audit.ok && audit.body.events.length ? `<table>
+        <caption class="sr-only">Actions refused by policy</caption>
+        <thead><tr><th scope="col">Rule</th><th scope="col">Action</th>
+          <th scope="col">Requested by</th><th scope="col">Reason</th></tr></thead>
+        <tbody>${audit.body.events.map((e) => `<tr>
+          <td class="num">${esc(e.policy_id)}</td>
+          <td>${esc(e.action)}</td>
+          <td>${esc(e.actor || "—")}${e.origin === "untrusted-content"
+            ? `<br><span class="status status-problem">from report text</span>` : ""}</td>
+          <td>${esc(e.reason)}</td></tr>`).join("")}
+        </tbody></table>`
+        : `<p style="color:var(--ink-soft)">Nothing has been refused yet.</p>`}
+    </section>`;
+}
+
+/* --- demo controls, clearly separated from the work ---------------------- */
+function demoTools() {
+  return `<section class="section">
+    <details class="fold">
+      <summary>Example workspace controls</summary>
+      <div class="fold-body">
+        <p style="color:var(--ink-mid);max-width:var(--measure);margin-bottom:var(--s4)">
+          This workspace uses synthetic reports. No real resident, report or
+          organisation appears anywhere in it.</p>
+        <div style="display:flex;gap:var(--s3);flex-wrap:wrap">
+          <button class="btn" data-act="seed">Load prior reports</button>
+          <button class="btn" data-act="add-example">Add one more report</button>
+          <button class="btn btn-danger" data-act="reset">Reset workspace</button>
+        </div>
+      </div>
+    </details>
+  </section>`;
+}
+
+/* ===========================================================================
+   Render
+   =========================================================================== */
+async function render() {
+  const view = $("view");
+  renderTabs();
+
+  if (state.error && !state.inbox) { view.innerHTML = viewError(); view.setAttribute("aria-busy", "false"); return; }
+  if (state.loading && !state.inbox) { view.innerHTML = viewLoading(); return; }
+  if (!state.inbox) { view.innerHTML = viewLoading(); return; }
+
+  const { name, param } = state.route;
+  let html;
+  if (name === "review" && param) { view.setAttribute("aria-busy", "true"); html = await viewReview(param); }
+  else if (name === "case" && param) { view.setAttribute("aria-busy", "true"); html = await viewCase(param); }
+  else if (name === "reports") html = viewReports();
+  else if (name === "campaigns") html = viewCampaigns();
+  else if (name === "activity") { view.setAttribute("aria-busy", "true"); html = await viewActivity(); }
+  else html = viewInbox();
+
+  view.innerHTML = html;
+  view.setAttribute("aria-busy", "false");
+  renderModes();
+
+  const ws = state.inbox.community_id || "workspace";
+  $("workspace-name").textContent = ws.replace(/-/g, " ");
+  document.title = state.inbox.decisions.length
+    ? `(${state.inbox.decisions.length}) Porchlight`
+    : "Porchlight";
+}
+
+/* ===========================================================================
+   Interaction
+   =========================================================================== */
+document.addEventListener("click", async (e) => {
+  const routeBtn = e.target.closest("[data-route]");
+  if (routeBtn) { go(`#/${routeBtn.dataset.route}`); return; }
+
+  const reviewBtn = e.target.closest("[data-review]");
+  if (reviewBtn) { go(`#/review/${reviewBtn.dataset.review}`); return; }
+
+  const row = e.target.closest("tr[data-case]");
+  if (row) { go(`#/case/${row.dataset.case}`); return; }
+
+  const act = e.target.closest("[data-act]");
+  if (!act) return;
+  const what = act.dataset.act;
+  const id = act.dataset.decision;
+
+  if (what === "retry") { state.error = null; await loadInbox(); return; }
+
+  if (what === "save") {
+    const text = $("message").value;
+    await withPending(act, "Saving", async () => {
+      const r = await api(`/decisions/${encodeURIComponent(id)}`, {
+        method: "PATCH", body: JSON.stringify({ body: text }) });
+      if (r.ok) {
+        delete state.drafts[id];
+        toast("Draft saved.");
+        await loadInbox({ markSeen: false, quiet: true });
+      } else {
+        /* Keep what they typed. Losing an edit to a transient failure is
+           unforgivable in a tool someone uses four hours a week. */
+        state.drafts[id] = text;
+        toast("Could not save. Your draft is kept here.", "bad");
+      }
     });
     return;
   }
 
-  if (act === "reject") {
-    await busy(btn, "Filing", async () => {
-      const r = await api(`/decisions/${id}/reject`, {
-        method: "POST", body: JSON.stringify({ note: "not now" }) });
-      toast(r.ok ? "Filed. Nothing was sent." : "Could not file.", !r.ok);
-      await refresh(false);
+  if (what === "reject") {
+    await withPending(act, "Filing", async () => {
+      const r = await api(`/decisions/${encodeURIComponent(id)}/reject`, {
+        method: "POST", body: JSON.stringify({ note: "" }) });
+      if (r.ok) { toast("Set aside. Nothing was sent."); go("#/inbox"); await loadInbox({ markSeen: false }); }
+      else toast("Could not set this aside.", "bad");
     });
     return;
   }
 
-  // Approve. Save first if the wording changed, so what is approved is what is shown.
-  await busy(btn, "Sending", async () => {
-    await api(`/decisions/${id}`, { method: "PATCH", body: JSON.stringify({ body }) });
-    const r = await api(`/decisions/${id}/approve`, {
-      method: "POST", body: JSON.stringify({ note: "" }) });
-    if (r.ok && r.body.allowed) {
-      toast(`Sent to the sandbox outbox, released by ${r.body.approver}.`);
-    } else if (r.status === 403) {
-      toast(`Refused by ${r.body.policy_id}: ${r.body.reason}`, true);
-      $("d-audit").open = true;
-    } else {
-      toast(r.body?.reason || "Could not send.", true);
-    }
-    await refresh(false);
-  });
+  if (what === "approve") { openConfirm(id); return; }
+
+  if (what === "seed") {
+    await withPending(act, "Loading", async () => {
+      const r = await api("/replay", { method: "POST", body: JSON.stringify({ directory: "corpus/seed" }) });
+      if (!r.ok) { toast("Could not load the example workspace.", "bad"); return; }
+      await loadInbox({ markSeen: false });
+      const held = (r.body.held_back || []).length;
+      toast(held
+        ? `Loaded. ${held} reports held back so a connection can form while you watch.`
+        : "Loaded.");
+    });
+    return;
+  }
+
+  if (what === "add-example") {
+    await withPending(act, "Adding", async () => {
+      const r = await api("/replay", { method: "POST",
+        body: JSON.stringify({ directory: "corpus/seed", hold_campaign_tail: false, limit: 0 }) });
+      if (!r.ok) { toast("Could not add a report.", "bad"); return; }
+      await loadInbox({ markSeen: false });
+      toast(state.inbox.decisions.length
+        ? "Reports connected. A decision is waiting for you."
+        : "Added.");
+    });
+    return;
+  }
+
+  if (what === "reset") {
+    await withPending(act, "Resetting", async () => {
+      await api("/reset", { method: "POST" });
+      state.drafts = {}; state.seenEvidence.clear(); state.lastCounts = null;
+      go("#/inbox");
+      await loadInbox();
+      toast("Workspace reset.");
+    });
+  }
 });
 
-/* Case rows expand in place to show the operational trace. */
-$("cases").addEventListener("click", async (e) => {
-  const row = e.target.closest("button[data-case]");
+/* Keyboard: report rows behave like the links they are. */
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const row = e.target.closest("tr[data-case]");
   if (!row) return;
-  const id = row.dataset.case;
-  const panel = document.querySelector(`[data-detail="${id}"]`);
-  if (!panel.hidden) { panel.hidden = true; return; }
-
-  panel.hidden = false;
-  panel.innerHTML = "Loading…";
-  const { ok, body } = await api(`/case/${id}`);
-  if (!ok) { panel.innerHTML = "Could not load this case."; return; }
-
-  const reports = body.reports || [];
-  panel.innerHTML = `
-    <p style="margin:0 0 .5rem">${esc(body.summary || "")}</p>
-    <table><thead><tr><th>Report</th><th>State</th><th>What arrived</th></tr></thead><tbody>
-      ${reports.map((r) => `<tr>
-        <td class="mono">${esc(r.report_id)}</td>
-        <td>${esc(r.state)}</td>
-        <td>${esc((r.raw_content || "").slice(0, 220))}</td></tr>`).join("")}
-    </tbody></table>
-    ${body.campaign ? `<p style="margin:.7rem 0 0">Part of
-      <b>${esc(body.campaign.label)}</b> — ${body.campaign.report_count} reports from
-      ${body.campaign.distinct_reporters} residents.</p>` : ""}`;
+  e.preventDefault();
+  go(`#/case/${row.dataset.case}`);
 });
 
-$("deny-filter").addEventListener("click", async (e) => {
-  state.denyOnly = !state.denyOnly;
-  e.target.setAttribute("aria-pressed", String(state.denyOnly));
-  e.target.textContent = state.denyOnly ? "Show all decisions" : "Show denied only";
-  await refresh(false);
+/* Editing a draft: say immediately that the approval has to be re-earned. */
+document.addEventListener("input", (e) => {
+  const ta = e.target.closest("textarea.message");
+  if (!ta) return;
+  const id = ta.dataset.decision;
+  state.drafts[id] = ta.value;
+  const note = $("edit-note");
+  if (note) { note.textContent = "Your changes need a new approval."; return; }
+  const existing = ta.parentElement.querySelector(".notice");
+  if (existing) {
+    existing.id = "edit-note";
+    existing.className = "notice notice-amber";
+    existing.textContent = "Your changes need a new approval.";
+  }
 });
 
-$("send-report").addEventListener("click", async (e) => {
-  const raw = $("artefact").value.trim();
-  if (!raw) { toast("Paste what the resident described first.", true); return; }
-  await busy(e.target, "Adding", async () => {
-    const r = await api("/reports", { method: "POST", body: JSON.stringify({
-      raw_content: raw,
-      reporter_pseudonym: $("reporter").value.trim() || "resident",
-      reporter_area: $("area").value.trim(),
-    })});
-    if (!r.ok) { toast(r.body?.detail || "Could not add the report.", true); return; }
-    $("artefact").value = "";
-    // The worker picks it up within a second; give it a beat, then show the result.
-    toast("Added. Porchlight is working on it.");
-    await new Promise((res) => setTimeout(res, 1400));
-    await refresh(false);
-    const d = state.inbox?.decisions?.length;
-    if (d) toast(`Porchlight found something. ${d} decision${d === 1 ? "" : "s"} waiting.`);
+/* --- confirm dialog ------------------------------------------------------ */
+let confirmFor = null;
+let lastFocus = null;
+
+function openConfirm(decisionId) {
+  confirmFor = decisionId;
+  lastFocus = document.activeElement;
+  const audience = state.inbox.decisions.find((d) => d.decision_id === decisionId)?.audience
+    || "the resident list";
+  $("confirm-body").textContent =
+    `This sends the message as written to ${audience}, in the sandbox. It does not `
+    + `reach a real phone. Your name is recorded on the approval.`;
+  $("confirm").showModal();
+  $("confirm-go").focus();
+}
+
+$("confirm").addEventListener("click", (e) => {
+  if (e.target.closest("[data-close]")) $("confirm").close();
+});
+$("confirm").addEventListener("close", () => {
+  /* Focus goes back where it came from, not to the top of the document. */
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  lastFocus = null;
+});
+
+$("confirm-go").addEventListener("click", async (e) => {
+  const id = confirmFor;
+  if (!id || state.approving.has(id)) return;
+  state.approving.add(id);
+  await withPending(e.target, "Sending", async () => {
+    /* Approve exactly what is on screen: save first, then approve. */
+    const text = $("message")?.value;
+    if (text !== undefined) {
+      const saved = await api(`/decisions/${encodeURIComponent(id)}`, {
+        method: "PATCH", body: JSON.stringify({ body: text }) });
+      if (!saved.ok) {
+        state.drafts[id] = text;
+        toast("Could not save your wording, so nothing was sent. Your draft is kept.", "bad");
+        return;
+      }
+    }
+    const r = await api(`/decisions/${encodeURIComponent(id)}/approve`, {
+      method: "POST", body: JSON.stringify({ note: "" }) });
+
+    if (r.ok && r.body.allowed) {
+      delete state.drafts[id];
+      toast(`Sent to the sandbox outbox. Recorded against ${r.body.approver}.`);
+      $("confirm").close();
+      go("#/inbox");
+      await loadInbox({ markSeen: false });
+    } else if (r.status === 403) {
+      /* A refusal is information, not a crash. Name the rule. */
+      toast(`Not sent — ${r.body.reason}`, "bad");
+      $("confirm").close();
+    } else if (r.status === 409) {
+      toast(r.body?.reason || "This decision was already handled.", "bad");
+      $("confirm").close();
+      await loadInbox({ markSeen: false });
+    } else {
+      toast("Could not send. Your draft is kept.", "bad");
+      $("confirm").close();
+    }
   });
+  state.approving.delete(id);
 });
 
-$("seed").addEventListener("click", async (e) => {
-  await busy(e.target, "Loading", async () => {
-    const r = await api("/replay", { method: "POST",
-      body: JSON.stringify({ directory: "corpus/seed" }) });
-    if (!r.ok) { toast("Could not load prior reports.", true); return; }
-    await refresh(false);
-    const held = r.body.held_back || [];
-    toast(held.length
-      ? `Loaded. ${held.length} report(s) held back so a campaign can form live.`
-      : "Loaded the coalition's prior reports.");
-  });
+/* --- coordinator name ---------------------------------------------------- */
+$("who").addEventListener("change", () => {
+  try { localStorage.setItem("porchlight.who", $("who").value); } catch { /* private mode */ }
 });
+try {
+  const saved = localStorage.getItem("porchlight.who");
+  if (saved) $("who").value = saved;
+} catch { /* private mode */ }
 
-$("reset").addEventListener("click", async (e) => {
-  await busy(e.target, "Resetting", async () => {
-    await api("/reset", { method: "POST" });
-    state.edited.clear();
-    await refresh(true);
-    toast("Reset. Nothing on file.");
-  });
-});
+/* ===========================================================================
+   Start
+   =========================================================================== */
+state.route = parseHash();
+loadInbox();
 
-refresh(true);
-// The worker runs whether or not this page is open; poll gently so the inbox
-// reflects that without the coordinator having to reload.
-setInterval(() => refresh(false), 8000);
+/* The worker runs whether or not this page is open. Poll quietly so the inbox
+   reflects that, but never while a draft is being edited or a dialog is open —
+   re-rendering under someone's cursor is how a tool loses their trust. */
+setInterval(() => {
+  if (document.hidden) return;
+  if ($("confirm").open) return;
+  if (document.activeElement?.classList?.contains("message")) return;
+  if (state.route.name === "review" || state.route.name === "case") return;
+  loadInbox({ markSeen: false, quiet: true });
+}, 10000);
 </script>
 </body>
 </html>

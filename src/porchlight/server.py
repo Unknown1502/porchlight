@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -320,6 +321,48 @@ def _campaign_view(campaign: Any) -> dict[str, Any]:
     }
 
 
+# What the agent did, phrased for the person who was not watching it happen.
+# The audit table stores an action id; this is the only place it becomes English,
+# so a wording change happens once.
+_ACTIVITY_WORDING = {
+    "report.dedup": "Repeat report identified",
+    "report.processed": "Report processed",
+    "case.merge": "New evidence added to an existing case",
+    "campaign.escalate": "Reports connected — prepared for review",
+    "decision.raise": "Warning drafted for review",
+    "decision.edit": "Draft edited",
+    "decision.reject": "Draft set aside",
+    "delivery.sandbox": "Approved and sent to the sandbox",
+    "report.process": "Report could not be processed",
+}
+
+
+def _activity_view(event: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "at": event["at"],
+        "action": event["action"],
+        "headline": _ACTIVITY_WORDING.get(event["action"], event["action"]),
+        "detail": event["reason"],
+        "report_id": event["report_id"],
+        "case_id": event["case_id"],
+        "campaign_id": event["campaign_id"],
+        "decision_id": event["decision_id"],
+        # A failure is the one activity line that should not read like routine work.
+        "is_problem": event["effect"] == "forbid" and event["action"] == "report.process",
+    }
+
+
+@app.get("/activity")
+def get_activity(limit: int = 60) -> dict[str, Any]:
+    """The work log: what the agent did, in the order it happened.
+
+    Distinct from ``/audit``, which answers what was *attempted* and whether
+    policy permitted it. Different question, different reader.
+    """
+    events = db.list_activity(settings().community_id, limit=max(1, min(limit, 200)))
+    return {"count": len(events), "events": [_activity_view(e) for e in events]}
+
+
 @app.get("/inbox")
 def get_inbox(mark_seen: bool = True,
               who: str = Header(default="coordinator", alias="X-Coordinator")) -> dict[str, Any]:
@@ -335,8 +378,19 @@ def get_inbox(mark_seen: bool = True,
     decisions = db.list_decisions(s.community_id, DecisionState.PENDING)
     campaigns = db.list_campaigns(s.community_id)
 
+    # Two sets of numbers, kept apart on purpose. "Since your last visit" has to
+    # mean that; reporting an all-time total under that heading is the kind of
+    # small dishonesty a coordinator notices the first time the number will not
+    # go down, and after that they trust none of the others either.
     handled = {
         "since": since.isoformat(),
+        "is_first_visit": who not in _LAST_SEEN,
+        "processed": db.count_reports(s.community_id, ReportState.PROCESSED, since=since),
+        "duplicates_folded": db.count_reports(s.community_id, ReportState.DUPLICATE, since=since),
+        "needs_review": db.count_reports(s.community_id, ReportState.NEEDS_REVIEW, since=since),
+        "failed": db.count_reports(s.community_id, ReportState.FAILED, since=since),
+    }
+    totals = {
         "processed": db.count_reports(s.community_id, ReportState.PROCESSED),
         "duplicates_folded": db.count_reports(s.community_id, ReportState.DUPLICATE),
         "needs_review": db.count_reports(s.community_id, ReportState.NEEDS_REVIEW),
@@ -347,6 +401,7 @@ def get_inbox(mark_seen: bool = True,
         "escalated": sum(1 for c in cases if c.state is CaseState.ESCALATED),
         "policy_denials": db.count_audit("forbid"),
     }
+    activity = [_activity_view(e) for e in db.list_activity(s.community_id, limit=12)]
     if mark_seen:
         _LAST_SEEN[who] = utcnow()
 
@@ -359,6 +414,8 @@ def get_inbox(mark_seen: bool = True,
         "community_id": s.community_id,
         "modes": _mode_badges(),
         "handled_while_away": handled,
+        "totals": totals,
+        "activity": activity,
         "decisions": [_decision_view(d) for d in decisions],
         "bands": bands,
         "cases": [_case_view(c) for c in _sorted_cases(cases)],
@@ -416,6 +473,71 @@ def get_decisions(state: Optional[str] = None) -> dict[str, Any]:
     wanted = DecisionState(state) if state else None
     decisions = db.list_decisions(settings().community_id, wanted)
     return {"count": len(decisions), "decisions": [_decision_view(d) for d in decisions]}
+
+
+@app.get("/decision/{decision_id}")
+def get_decision(decision_id: str) -> dict[str, Any]:
+    """Everything the review screen needs to make one judgement.
+
+    Assembled server-side so the reviewer is looking at one consistent snapshot.
+    Four round-trips stitched together in the browser can show evidence from
+    before an edit next to a draft from after it.
+    """
+    decision = db.get_decision(decision_id)
+    if decision is None:
+        raise HTTPException(status_code=404, detail=f"unknown decision {decision_id}")
+
+    campaign = db.get_campaign(decision.campaign_id) if decision.campaign_id else None
+    member_ids = list(campaign.report_ids) if campaign else []
+    reports = [r for r in (db.get_report(rid) for rid in member_ids) if r]
+
+    return {
+        **_decision_view(decision),
+        "campaign": _campaign_view(campaign) if campaign else None,
+        "reports": [{
+            "report_id": r["report_id"],
+            "reporter": r["reporter_pseudonym"],
+            "area": r["reporter_area"],
+            "received_at": r["received_at"],
+            "channel": r["channel"],
+            "state": r["state"],
+            "script_fingerprint": r["script_fingerprint"],
+            "urgency": r["urgency"],
+            "raw_content": r["raw_content"],
+        } for r in reports],
+        # Said plainly rather than left to be inferred from an absence.
+        "uncertain": _what_is_not_known(decision, campaign, reports),
+        "delivered": db.get_decision(decision_id).state is DecisionState.APPROVED,
+    }
+
+
+def _what_is_not_known(decision: Any, campaign: Any, reports: list[dict[str, Any]]) -> list[str]:
+    """The limits of the evidence, stated in the briefing rather than omitted.
+
+    A reviewer deciding whether to warn a neighbourhood needs the gaps as much as
+    the findings. Leaving them out makes a correlation look like a conclusion.
+    """
+    gaps: list[str] = []
+    if campaign is None:
+        gaps.append("This draft is not attached to a correlated group of reports.")
+        return gaps
+
+    ev = campaign.evidence
+    if not ev.shared_indicators:
+        gaps.append("No shared callback number or payment destination — "
+                    "these reports are linked by script wording alone.")
+    if len(ev.areas) > 1:
+        gaps.append(f"Reports come from {len(ev.areas)} areas, so the affected list "
+                    f"may be wider or narrower than one neighbourhood.")
+    if ev.distinct_reporters < 4:
+        gaps.append(f"{ev.distinct_reporters} residents reported this. A larger group "
+                    f"would make the pattern more certain.")
+    if any(r["state"] == "needs_review" for r in reports):
+        gaps.append("At least one linked report could not be classified automatically.")
+
+    gaps.append("Shared details show these reports are related. They do not "
+                "establish who is responsible.")
+    return gaps
 
 
 @app.patch("/decisions/{decision_id}")
@@ -572,6 +694,24 @@ def invocations(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[st
         "pending_decisions": len(db.list_decisions(settings().community_id,
                                                    DecisionState.PENDING)),
     }
+
+
+@app.get("/fonts/{filename}")
+def font(filename: str) -> FileResponse:
+    """Serve the vendored typefaces.
+
+    Self-hosted rather than from a CDN: the container has no guaranteed outbound
+    network, and a screen about someone's fraud report should not make a
+    third-party request every time it loads. See dashboard/fonts/README.md for
+    licences.
+    """
+    if not re.fullmatch(r"[a-z0-9-]+\.woff2", filename):
+        raise HTTPException(status_code=404, detail="not found")
+    path = DASHBOARD.parent / "fonts" / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(path, media_type="font/woff2",
+                        headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/")

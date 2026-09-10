@@ -359,14 +359,25 @@ def get_report(report_id: str) -> Optional[dict[str, Any]]:
     return dict(row) if row else None
 
 
-def count_reports(community_id: str, state: Optional[ReportState] = None) -> int:
-    conn = connect()
+def count_reports(community_id: str, state: Optional[ReportState] = None,
+                  since: Optional[datetime] = None) -> int:
+    """Count reports, optionally only those that arrived after a moment.
+
+    ``since`` exists because the inbox says "since your last visit" and that
+    sentence has to be true. Reporting an all-time total under that heading is
+    the kind of small dishonesty that costs a coordinator's trust the first time
+    they notice the number never goes down.
+    """
+    clauses = ["community_id=?"]
+    params: list[Any] = [community_id]
     if state:
-        row = conn.execute("SELECT COUNT(*) c FROM reports WHERE community_id=? AND state=?",
-                           (community_id, state.value)).fetchone()
-    else:
-        row = conn.execute("SELECT COUNT(*) c FROM reports WHERE community_id=?",
-                           (community_id,)).fetchone()
+        clauses.append("state=?")
+        params.append(state.value)
+    if since is not None:
+        clauses.append("created_at >= ?")
+        params.append(_iso(since))
+    row = connect().execute(
+        f"SELECT COUNT(*) c FROM reports WHERE {' AND '.join(clauses)}", params).fetchone()
     return int(row["c"])
 
 
@@ -689,6 +700,31 @@ def list_audit(limit: int = 50, effect: Optional[str] = None) -> list[dict[str, 
     else:
         rows = conn.execute(
             "SELECT * FROM audit_events ORDER BY event_id DESC LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def list_activity(community_id: str, limit: int = 40,
+                  since: Optional[datetime] = None) -> list[dict[str, Any]]:
+    """The work log, in the order it happened.
+
+    Distinct from the policy trail: this answers "what did you do while I was
+    out", where the audit answers "what was attempted and permitted". Both come
+    from the same table; they differ in which actions they select and in who the
+    reader is.
+    """
+    wanted = ("report.dedup", "report.processed", "case.merge", "campaign.escalate",
+              "decision.raise", "decision.edit", "decision.reject", "delivery.sandbox",
+              "report.process")
+    placeholders = ",".join("?" for _ in wanted)
+    params: list[Any] = list(wanted)
+    clause = f"action IN ({placeholders})"
+    if since is not None:
+        clause += " AND at >= ?"
+        params.append(_iso(since))
+    params.append(limit)
+    rows = connect().execute(
+        f"SELECT * FROM audit_events WHERE {clause} ORDER BY event_id DESC LIMIT ?",
+        params).fetchall()
     return [dict(r) for r in rows]
 
 

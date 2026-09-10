@@ -79,6 +79,11 @@ def seeds() -> None:
     run(PY, "eval/run_seeds.py", "--seeds", "5")
 
 
+def design() -> None:
+    """Check the dashboard's colour contrast and accessibility structure."""
+    run(PY, "scripts/check_design.py")
+
+
 def test() -> None:
     """Full test suite."""
     run(PY, "-m", "pytest", "-q")
@@ -102,6 +107,7 @@ def docs() -> None:
 def check() -> None:
     """Everything CI runs. The one command to trust before submitting."""
     lint()
+    design()
     test()
     corpus()
     evaluate()
@@ -140,6 +146,7 @@ TARGETS = {
     "demo": demo,
     "eval": evaluate,
     "seeds": seeds,
+    "design": design,
     "test": test,
     "injection": injection,
     "lint": lint,

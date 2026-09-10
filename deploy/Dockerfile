@@ -36,6 +36,10 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Everything the running system reads at runtime.
+# src/ carries the dashboard and its two vendored woff2 files. They are served
+# from /fonts by the app rather than a CDN: the container has no guaranteed
+# outbound network, and a screen about someone's fraud report should not make
+# a third-party request to render.
 COPY src/    ./src/
 COPY packs/  ./packs/
 COPY policies/ ./policies/

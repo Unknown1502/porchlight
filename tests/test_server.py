@@ -96,7 +96,7 @@ def test_reports_are_processed_with_the_dashboard_closed(client):
 
     inbox = client.get("/inbox", headers=WHO).json()
     assert inbox["handled_while_away"]["processed"] == 3
-    assert inbox["handled_while_away"]["campaigns_found"] == 1
+    assert inbox["totals"]["campaigns_found"] == 1
     assert len(inbox["cases"]) == 3
 
 
@@ -124,9 +124,9 @@ def test_the_inbox_leads_with_what_was_handled_then_what_needs_a_human(client):
     inbox = client.get("/inbox", headers=WHO).json()
 
     handled = inbox["handled_while_away"]
-    assert handled["processed"] == 3
-    assert handled["escalated"] >= 1
-    assert handled["policy_denials"] > 0, "the gate ran and said so"
+    assert handled["processed"] == 3, "'since your last visit' must mean that"
+    assert inbox["totals"]["escalated"] >= 1
+    assert inbox["totals"]["policy_denials"] > 0, "the gate ran and said so"
 
     assert len(inbox["decisions"]) == 1
     decision = inbox["decisions"][0]
@@ -463,3 +463,80 @@ def test_what_is_delivered_is_the_edited_text_not_the_original(client):
     sent = client.get("/outbox").json()["messages"][0]["body"]
     assert sent.endswith("Ring the centre before you pay anyone.")
     assert message_digest(sent) == message_digest(edited)
+
+
+# --------------------------------------------------------------------------
+# "Since your last visit" has to mean that
+# --------------------------------------------------------------------------
+def test_the_since_count_resets_after_a_visit_and_the_total_does_not(client):
+    """The number under 'since your last visit' must be able to go down.
+
+    Reporting an all-time total under that heading is a small dishonesty a
+    coordinator notices the first time the number never falls, and after that
+    they trust none of the others either.
+    """
+    client.post("/reset")
+    for i in range(3):
+        submit(client, f"r{i}", reporter=f"resident-{i:03d}")
+
+    first = client.get("/inbox", headers=WHO).json()
+    assert first["handled_while_away"]["processed"] == 3
+    assert first["totals"]["processed"] == 3
+
+    # Look again with nothing new having arrived.
+    second = client.get("/inbox", headers=WHO).json()
+    assert second["handled_while_away"]["processed"] == 0, "nothing new since the last look"
+    assert second["totals"]["processed"] == 3, "but the work still exists"
+
+    submit(client, "r-new", reporter="resident-900")
+    third = client.get("/inbox", headers=WHO).json()
+    assert third["handled_while_away"]["processed"] == 1
+    assert third["totals"]["processed"] == 4
+
+
+def test_the_activity_feed_says_what_happened_in_english(client):
+    for i in range(3):
+        submit(client, f"r{i}", reporter=f"resident-{i:03d}")
+    submit(client, "dup", reporter="resident-000")  # identical to r0
+
+    events = client.get("/activity").json()["events"]
+    headlines = [e["headline"] for e in events]
+    assert "Repeat report identified" in headlines
+    assert "Warning drafted for review" in headlines
+    for event in events:
+        assert event["at"], "an activity line without a time is not a log entry"
+        assert event["headline"] != event["action"], "raw action ids must not reach the screen"
+
+
+def test_the_review_screen_gets_one_consistent_snapshot(client):
+    decision = _campaign_of_three(client)
+    detail = client.get(f"/decision/{decision['decision_id']}").json()
+
+    assert detail["campaign"]["shared_indicators"]
+    assert len(detail["reports"]) == 3, "the linked reports travel with the briefing"
+    assert all(r["raw_content"] for r in detail["reports"])
+    assert detail["delivered"] is False, "nothing is delivered before approval"
+
+
+def test_the_briefing_states_what_is_not_known(client):
+    """A correlation shown without its limits reads as a conclusion."""
+    decision = _campaign_of_three(client)
+    detail = client.get(f"/decision/{decision['decision_id']}").json()
+
+    assert detail["uncertain"], "the gaps must be stated, not omitted"
+    joined = " ".join(detail["uncertain"]).lower()
+    assert "do not establish who is responsible" in joined
+
+
+def test_an_unknown_decision_detail_is_a_404(client):
+    assert client.get("/decision/nope").status_code == 404
+
+
+def test_fonts_are_served_and_path_traversal_is_refused(client):
+    ok = client.get("/fonts/public-sans-latin.woff2")
+    assert ok.status_code == 200
+    assert ok.headers["content-type"] == "font/woff2"
+    assert ok.content[:4] == b"wOF2"
+
+    for bad in ("../../server.py", "..%2fserver.py", "evil.js"):
+        assert client.get(f"/fonts/{bad}").status_code == 404

@@ -106,6 +106,17 @@ def accept(report: Report) -> dict[str, Any]:
                                   content_hash(report))
         db.update_report(report.report_id, state=ReportState.DUPLICATE,
                          duplicate_of=prior or "")
+        # Recorded here as well as in the worker. There are two ways a repeat is
+        # caught — collided on the idempotency key at the door, or recognised
+        # once the queue reached it — and only one of them used to reach the
+        # activity log. A coordinator saw "repeat identified" for some repeats
+        # and silence for others, which reads as the system missing them.
+        db.append_audit(AuditEvent(
+            action="report.dedup", effect="permit", policy_id="P000", origin="system",
+            actor="porchlight-agent", report_id=report.report_id,
+            reason=(f"same reporter and artefact as {prior}; folded in rather than counted again"
+                    if prior else "identical artefact already in the queue"),
+        ))
         return {"accepted": True, "queued": False, "duplicate_of": prior,
                 "report_id": report.report_id, "reason": "identical artefact already ingested"}
 
@@ -195,6 +206,22 @@ def process_one(report_id: str) -> dict[str, Any]:
 
     case = _attach_to_case(report, case_file, final_state)
     campaign_id = _record_campaign(report, case_file, case)
+
+    # Routine work gets a line too. Without it the activity list sat empty under
+    # a summary saying forty-four things had happened — which reads as the log
+    # being broken rather than as the work being unremarkable.
+    if final_state is ReportState.NEEDS_REVIEW:
+        outcome = "could not be classified automatically — needs a person to look"
+    elif campaign_id:
+        outcome = "connected to other reports"
+    else:
+        outcome = "no connection to other reports found"
+    db.append_audit(AuditEvent(
+        action="report.processed", effect="permit", policy_id="P000", origin="system",
+        actor="porchlight-agent", report_id=report_id, case_id=case.case_id,
+        campaign_id=campaign_id, reason=f"{urgency} · {outcome}",
+    ))
+
     return {"report_id": report_id, "status": final_state.value, "case_id": case.case_id,
             "campaign_id": campaign_id, "urgency": urgency,
             "newly_escalated": bool(case_file.campaign and case_file.campaign.newly_escalated)}

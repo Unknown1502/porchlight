@@ -50,6 +50,11 @@ jobs:
       - name: Lint
         run: ruff check src corpus eval tests
 
+      - name: Design checks
+        # Colour choices drift during a redesign. Two ink tokens shipped below
+        # AA on their first pass; this catches the next ones.
+        run: python scripts/check_design.py
+
       - name: Tests
         run: pytest -q
 
