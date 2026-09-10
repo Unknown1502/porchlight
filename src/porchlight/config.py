@@ -34,6 +34,28 @@ class Settings:
     policy_engine_id: str = os.getenv("AGENTCORE_POLICY_ENGINE_ID", "")
     urlhaus_key: str = os.getenv("URLHAUS_AUTH_KEY", "")
 
+    # Where the transactional store lives. Empty => porchlight.db at the repo
+    # root. Tests point this at a temp file so a run never touches demo state.
+    db_path: str = os.getenv("PORCHLIGHT_DB", "")
+
+    # Shared secret for POST /reports. Empty means the webhook is open, which is
+    # correct for a local demo and is surfaced in the UI as such — an unlabelled
+    # open ingest endpoint is worse than an obvious one.
+    ingest_token: str = os.getenv("PORCHLIGHT_INGEST_TOKEN", "")
+
+    # Fixture-backed corroboration. Default ON: the demo must not depend on a
+    # third-party feed being up, and it must never touch attacker infrastructure.
+    # Set to 0 to consult the real allow-listed feeds.
+    use_fixture_tools: bool = os.getenv("PORCHLIGHT_FIXTURE_TOOLS", "1") == "1"
+
+    # How long a coordinator approval stays valid. Short on purpose: an approval
+    # is permission to send this message now, not a standing authorisation.
+    approval_ttl_minutes: int = int(os.getenv("PORCHLIGHT_APPROVAL_TTL_MIN", "30"))
+
+    # Bound on model/tool work per report, so a pathological input cannot run up
+    # a bill or wedge the queue.
+    max_tool_calls_per_report: int = int(os.getenv("PORCHLIGHT_MAX_TOOL_CALLS", "8"))
+
     # Campaign correlation thresholds. Deliberately conservative: a false
     # "campaign" broadcast to a whole senior list is worse than a missed one.
     campaign_min_reports: int = 3
