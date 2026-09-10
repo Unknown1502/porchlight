@@ -162,7 +162,7 @@
     "rpt-0021": "ambiguous_urgency",
     "rpt-0020": "ambiguous_urgency"
   },
-  "generated_at": "2026-09-10T10:42:16.408260+00:00",
+  "generated_at": "2026-09-10T10:51:21.019254+00:00",
   "seed": 20260918,
   "provenance": "Synthetic. Scripts are reconstructions of publicly documented scam patterns; no real report, victim or message is reproduced. Domains use the reserved .example TLD (RFC 2606). Phone numbers, UPI handles and wallet addresses are invented placeholders in a fixed non-allocated block - they are not drawn from any regulator's documentation range, because no such range exists for these identifier types in the jurisdictions modelled. Do not dial or pay them."
 }
