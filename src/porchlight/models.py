@@ -13,6 +13,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from .trace import Trace
+
 
 # --------------------------------------------------------------------------
 # Inbound
@@ -228,6 +230,9 @@ class CaseFile(BaseModel):
     campaign: Optional[CampaignResult] = None
     response: Optional[ResponseResult] = None
     policy_events: list[dict] = Field(default_factory=list)
+    # The operational trace: what each step did, which tools it called, what it
+    # could not establish. Never the model's reasoning - see porchlight.trace.
+    trace: Optional["Trace"] = None
     errors: list[str] = Field(default_factory=list)
 
     @property

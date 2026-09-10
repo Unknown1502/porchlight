@@ -15,6 +15,7 @@ permit (
     AgentCore::Action::"PorchlightTools___url_reputation",
     AgentCore::Action::"PorchlightTools___domain_age",
     AgentCore::Action::"PorchlightTools___phone_shape",
+    AgentCore::Action::"PorchlightTools___payment_check",
     AgentCore::Action::"PorchlightTools___store_lookup",
     AgentCore::Action::"PorchlightTools___store_write",
     AgentCore::Action::"PorchlightTools___case_write",

@@ -40,6 +40,17 @@ Note on wording: the current published rule asks for *"Agents for Humans" in you
 title* — not a hashtag. Multiple posts are permitted. Confirm the exact wording on
 the Devpost rules tab before publishing.
 
+## Known blockers
+
+| Blocker | Effect | Owner |
+|---|---|---|
+| **AWS account has no valid payment instrument.** `bedrock-runtime converse` returns `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT`. | Live model mode cannot run. Offline mode is unaffected, so the demo, tests and eval all still work. | **HUMAN** — attach a payment method, or apply the hackathon's $50 credits (Resources tab). |
+
+Worth knowing: an earlier attempt on the same account *did* reach Bedrock and the
+intake agent returned a valid structured result from
+`global.anthropic.claude-sonnet-4-6`, so the model id and the Strands wiring are
+right. The block appeared between attempts and is account-level, not code.
+
 ## Pre-flight (run immediately before submitting)
 
 ```bash

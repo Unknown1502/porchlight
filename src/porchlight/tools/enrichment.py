@@ -23,6 +23,7 @@ import httpx
 from strands import tool
 
 from ..config import active_pack, settings
+from . import fixtures
 
 _TIMEOUT = httpx.Timeout(6.0, connect=3.0)
 _UA = {"User-Agent": "porchlight-coalition-agent/0.1 (+defensive; contact: coalition coordinator)"}
@@ -32,7 +33,6 @@ def _unknown(indicator: str, reason: str) -> dict[str, Any]:
     return {"indicator": indicator, "verdict": "unknown", "source": "none", "detail": reason}
 
 
-@tool
 def check_url_reputation(url: str) -> dict:
     """Check a URL or domain against public abuse feeds.
 
@@ -46,6 +46,9 @@ def check_url_reputation(url: str) -> dict:
         source, detail.
     """
     s = settings()
+    if fixtures.enabled():
+        hit = fixtures.lookup_url(url)
+        return hit if hit else _unknown(url, "no fixture entry for this indicator")
     if not s.urlhaus_key:
         return _unknown(url, "URLHAUS_AUTH_KEY not configured; no feed consulted")
     try:
@@ -72,7 +75,6 @@ def check_url_reputation(url: str) -> dict:
     return _unknown(url, f"feed status {data.get('query_status')}")
 
 
-@tool
 def domain_age_days(domain: str) -> dict:
     """Look up how many days ago a domain was registered, via RDAP.
 
@@ -88,6 +90,10 @@ def domain_age_days(domain: str) -> dict:
     domain = re.sub(r"^https?://", "", domain.strip().lower()).split("/")[0]
     if not re.fullmatch(r"[a-z0-9.-]{3,253}", domain):
         return {**_unknown(domain, "not a syntactically valid domain"), "age_days": None}
+    if fixtures.enabled():
+        hit = fixtures.lookup_domain(domain)
+        return hit if hit else {**_unknown(domain, "no fixture entry for this domain"),
+                                "age_days": None}
     try:
         r = httpx.get(f"https://rdap.org/domain/{domain}", headers=_UA, timeout=_TIMEOUT,
                       follow_redirects=True)
@@ -118,7 +124,6 @@ def domain_age_days(domain: str) -> dict:
             "detail": detail, "age_days": age}
 
 
-@tool
 def phone_shape(number: str) -> dict:
     """Sanity-check the shape of a phone number. Never dials it.
 
@@ -128,6 +133,10 @@ def phone_shape(number: str) -> dict:
     Returns:
         A dict with keys: indicator, verdict, source, detail.
     """
+    if fixtures.enabled():
+        hit = fixtures.lookup_phone(number)
+        if hit:
+            return hit
     digits = re.sub(r"\D", "", number)
     notes = []
     # E.164 is the only universal rule: 1-15 digits. Everything narrower is a
@@ -147,3 +156,48 @@ def phone_shape(number: str) -> dict:
     verdict = "suspicious" if any("spoof" in n or "too short" in n or "longer" in n for n in notes) else "unknown"
     return {"indicator": number, "verdict": verdict, "source": "phone_shape",
             "detail": "; ".join(notes) or "no shape anomalies detected"}
+
+
+def check_payment_handle(handle: str) -> dict:
+    """Check a beneficiary payment handle or wallet against the partner-bank suspect list.
+
+    This is the analogue of asking a bank's fraud desk "is this account already
+    known to you". It never moves money, never contacts the handle, and never
+    reveals which resident reported it — the question is about the beneficiary,
+    not about the victim.
+
+    Fixture-backed by default; the live equivalent would be a partner-bank API
+    under the same allow-list.
+
+    Args:
+        handle: The payment handle or wallet address exactly as reported.
+
+    Returns:
+        A dict with keys: indicator, verdict, source, detail.
+    """
+    if fixtures.enabled():
+        hit = fixtures.lookup_payment_handle(handle)
+        return hit if hit else _unknown(handle, "no fixture entry for this beneficiary")
+    # No live partner-bank integration exists. Saying so beats inventing one:
+    # a tool that silently returns "unknown" reads as a clean bill of health.
+    return _unknown(handle, "no partner-bank integration configured in this deployment")
+
+
+# --------------------------------------------------------------------------
+# Strands tool objects.
+#
+# Each is wrapped from the plain function above rather than declared with a
+# decorator, so there is exactly one definition and two callers: the agent gets
+# the wrapped tool, the deterministic pipeline calls the function directly.
+#
+# The alternative — reaching into the decorated object for its underlying
+# callable — meant depending on a private attribute (`_tool_func`) whose name
+# changed between Strands releases and broke with an AttributeError at runtime,
+# inside a try/except that turned it into a silently empty corroboration step.
+# --------------------------------------------------------------------------
+url_reputation_tool = tool(check_url_reputation)
+domain_age_tool = tool(domain_age_days)
+phone_shape_tool = tool(phone_shape)
+payment_handle_tool = tool(check_payment_handle)
+
+ENRICHMENT_TOOLS = [url_reputation_tool, domain_age_tool, phone_shape_tool, payment_handle_tool]

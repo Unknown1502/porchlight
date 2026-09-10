@@ -266,6 +266,7 @@ withdraw.
 | CloudWatch denial records | **Not verified** | Follows from the above |
 | AgentCore Memory backing the store | **Not wired** | The record store is a JSON file in every mode; see Limitations |
 | Deployed to AgentCore Runtime | **Not deployed** | `list-agent-runtimes` returns empty |
+| Live model mode (Bedrock) | **Partially verified** | The intake agent returned a valid structured result from `global.anthropic.claude-sonnet-4-6`. Subsequent calls are blocked account-wide by `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT`, so the full five-node run has not completed live. |
 
 **The gateway blocker, precisely.** AgentCore Policy rejects a Cedar policy whose
 resource scope is a wildcard, and requires `resource == AgentCore::Gateway::"<arn>"`

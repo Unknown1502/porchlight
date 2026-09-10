@@ -268,7 +268,8 @@ def _r_tool_allowlist(action: str, ctx: dict) -> Decision | None:
 
 
 ALLOWED_ACTIONS = {
-    "url.reputation", "domain.age", "phone.shape", "store.lookup", "store.write",
+    "url.reputation", "domain.age", "phone.shape", "payment.check",
+    "store.lookup", "store.write",
     "case.write", "partner.brief", "complaint.draft",
     "sms.send", "email.send", "flyer.publish", "broadcast.send",
     "http.fetch", "voice.call",

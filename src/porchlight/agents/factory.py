@@ -31,7 +31,7 @@ from ..prompts import (
     RESPONSE_PROMPT,
     SCRIPT_MATCHER_PROMPT,
 )
-from ..tools.enrichment import check_url_reputation, domain_age_days, phone_shape
+from ..tools.enrichment import ENRICHMENT_TOOLS
 from ..tools.store import lookup_prior_reports
 
 
@@ -56,7 +56,7 @@ def build_corroboration_agent() -> Agent:
     return Agent(
         model=model(),
         system_prompt=CORROBORATION_PROMPT,
-        tools=[check_url_reputation, domain_age_days, phone_shape, lookup_prior_reports],
+        tools=[*ENRICHMENT_TOOLS, lookup_prior_reports],
         structured_output_model=CorroborationResult,
         name="corroboration",
     )
