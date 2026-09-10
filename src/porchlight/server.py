@@ -1,77 +1,109 @@
 """The HTTP surface: what the coordinator actually touches.
 
-Deliberately thin. Every decision — extraction, staging, clustering, drafting,
-and above all the policy gate — already lives in :mod:`porchlight.pipeline` and
-:mod:`porchlight.policy`. This module adds no judgement of its own; it moves
-JSON, keeps the processed case files in memory so the queue can be re-rendered
-without re-running the graph, and serves one static HTML file.
+Deliberately thin. Ingestion lives in :mod:`porchlight.ingest`, the decision and
+approval machinery in :mod:`porchlight.approvals`, enforcement in
+:mod:`porchlight.policy`, persistence in :mod:`porchlight.db`. This module moves
+JSON and serves one HTML file.
 
-Two contracts are served from one app:
+Three contracts are served from one app:
 
-* the dashboard's own API (``/report``, ``/queue``, ``/campaigns``, ``/approve``)
-* the AgentCore Runtime contract (``POST /invocations``, ``GET /ping`` on 8080),
-  so ``agentcore launch`` can host this file unmodified.
+* **the decision inbox** the coordinator uses (``/inbox``, ``/decisions/...``);
+* **the ingestion webhook** partner systems post to (``POST /reports``), which is
+  the same code path the replay source uses — so the demo exercises production
+  ingestion rather than a shortcut;
+* **the AgentCore Runtime contract** (``POST /invocations``, ``GET /ping``), so a
+  container can host this file unmodified.
 
-One thing here *is* load-bearing: ``POST /approve`` is the only place in the
-system where an approval token is minted, and it is minted from a named human.
-That is what P002 checks for. The agent has no path to this endpoint.
+The load-bearing thing here: no endpoint in this file can send anything. Delivery
+happens only through ``approvals.approve``, only into the sandbox outbox, and
+only with a capability minted against a named human.
 """
 from __future__ import annotations
 
 import json
 import logging
-import threading
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from . import approvals, db, ingest
 from .config import active_pack, settings
-from .correlation import build_clusters, meets_threshold
-from .models import DRAFT_ACTIONS, CaseFile, Channel, Report
-from .pipeline import process_report
-from .policy import backend_name, evaluate, mint_approval, recent_audit, reset_audit, spend_approval
-from .tools.indicators import indicator_keys
-from .tools.store import get_store, iter_records
+from .domain import CaseState, DecisionState, ReportState, utcnow
+from .models import Channel, Report
+from .policy import backend_name
+from .tools import fixtures
 
 log = logging.getLogger(__name__)
 
 DASHBOARD = Path(__file__).parent / "dashboard" / "index.html"
 
-# The pipeline mutates process-global state (the community store, the policy
-# audit trail, the broadcast rate-limit window). FastAPI runs sync endpoints in
-# a threadpool, so serialise report processing rather than let two reports
-# interleave and corrupt a cluster count on camera.
-_PIPELINE_LOCK = threading.Lock()
+# When the coordinator last looked. Drives "what happened while you were away".
+# Process-local on purpose: after a restart the honest answer is "since this
+# session started", and persisting it would imply a per-user identity this
+# deployment does not have.
+_LAST_SEEN: dict[str, datetime] = {}
+_STARTED_AT = utcnow()
 
-# Processed case files, newest last. Memory only: the durable record is the
-# community store, which is what campaign correlation reads. Restarting the
-# server empties the queue but preserves campaigns, which is the correct
-# trade-off — the queue is a shift's worth of work, the store is the coalition's
-# institutional memory.
-_CASES: dict[str, CaseFile] = {}
-_APPROVALS: dict[str, list[dict[str, Any]]] = {}
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Open the store and start the background worker; stop it on the way out.
+
+    The worker is what makes this a background agent rather than a form: reports
+    are processed whether or not anyone has the dashboard open.
+    """
+    db.connect()
+    ingest.worker().start()
+    yield
+    ingest.worker().stop()
+
 
 app = FastAPI(
     title="Porchlight",
-    version="0.1.0",
-    description="Community scam-campaign agent for local elder-fraud coalitions.",
+    version="0.2.0",
+    description="Background intake agent for local elder-fraud response networks.",
+    lifespan=lifespan,
 )
+
+
+# --------------------------------------------------------------------------
+# Dev authentication
+# --------------------------------------------------------------------------
+def coordinator(x_coordinator: str = Header(default="")) -> str:
+    """Identify the approving human.
+
+    **This is development authentication, not identity.** It records *which*
+    coordinator approved something; it does not verify *that* they are that
+    person. A real deployment puts an IdP in front of this and the approval
+    capability binds to the authenticated subject. Labelled everywhere it
+    appears, because an unlabelled fake login is worse than an obvious one.
+    """
+    name = (x_coordinator or "").strip()
+    if not name:
+        raise HTTPException(status_code=401,
+                            detail="X-Coordinator header required (dev auth: names the approver)")
+    return name
+
+
+def _ingest_authorised(x_ingest_token: str = Header(default="")) -> bool:
+    expected = settings().ingest_token
+    if not expected:
+        return True  # open webhook; surfaced in /inbox as such
+    if x_ingest_token != expected:
+        raise HTTPException(status_code=401, detail="invalid ingest token")
+    return True
 
 
 # --------------------------------------------------------------------------
 # Request bodies
 # --------------------------------------------------------------------------
 class ReportSubmission(BaseModel):
-    """What the dashboard (or a partner system) posts.
-
-    Only ``raw_content`` is required. Everything else has a sensible default so
-    a volunteer can paste a message and press one key.
-    """
+    """What a partner system, the dashboard, or a replay posts."""
 
     raw_content: str = Field(min_length=1)
     channel: Channel = Channel.SMS
@@ -96,301 +128,30 @@ class ReportSubmission(BaseModel):
         )
 
 
-class ApprovalRequest(BaseModel):
-    """A named human taking responsibility for one outbound artefact."""
+class DecisionEdit(BaseModel):
+    body: str = Field(min_length=1)
+    title: Optional[str] = None
 
-    report_id: str
-    draft_kind: str
-    approver: str = Field(min_length=1, description="Coordinator name. Recorded in the audit trail.")
+
+class DecisionNote(BaseModel):
     note: str = ""
 
 
 # --------------------------------------------------------------------------
-# Projections — the shapes the dashboard renders
+# Ingestion
 # --------------------------------------------------------------------------
-def _queue_item(case: CaseFile) -> dict[str, Any]:
-    r, intake, stage, camp = case.report, case.intake, case.stage, case.campaign
-    match = camp.match if camp and camp.is_campaign and camp.match else None
-    approvals = _APPROVALS.get(r.report_id, [])
-    return {
-        "report_id": r.report_id,
-        "received_at": r.received_at.isoformat(),
-        "channel": r.channel.value,
-        "reporter": r.reporter_pseudonym,
-        "area": r.reporter_area,
-        "urgency": stage.urgency.value if stage else "green",
-        "hours_to_irreversible": stage.hours_to_irreversible if stage else None,
-        "playbook_stage": stage.playbook_stage if stage else "",
-        "recommended_human_action": stage.recommended_human_action if stage else "",
-        "isolation_signals": stage.isolation_signals if stage else [],
-        "script_fingerprint": intake.script_fingerprint if intake else "",
-        # Sent so the queue can fall back to something a human can read when the
-        # fingerprint is a sentinel ("unclassified script"). A row that says only
-        # "unclassified" tells a coordinator nothing about whether to open it.
-        "pretext": intake.pretext if intake else "",
-        "impersonated_entity": intake.impersonated_entity if intake else "",
-        "money_rail": intake.money_rail.value if intake else "none",
-        "amount_demanded": intake.amount_demanded if intake else None,
-        "currency": intake.currency if intake else "",
-        "injection_flagged": bool(intake and intake.contains_injection_attempt),
-        "campaign_id": match.campaign_id if match else "",
-        "campaign_label": match.campaign_label if match else "",
-        "newly_escalated": bool(camp and camp.newly_escalated),
-        "decision_for_human": case.response.decision_for_human if case.response else "",
-        "drafts_total": len(case.response.drafts) if case.response else 0,
-        "drafts_approved": len(approvals),
-        "errors": case.errors,
-    }
+@app.post("/reports", status_code=202)
+def post_reports(submission: ReportSubmission,
+                 _: bool = Depends(_ingest_authorised)) -> dict[str, Any]:
+    """Accept a report and queue it. Returns immediately; the worker does the work.
 
-
-def _case_detail(case: CaseFile) -> dict[str, Any]:
-    """The full case file, plus the approval state the CaseFile does not carry."""
-    payload = json.loads(case.model_dump_json())
-    payload["approvals"] = _APPROVALS.get(case.report.report_id, [])
-    payload["summary"] = _queue_item(case)
-    return payload
-
-
-def _sorted_cases() -> list[CaseFile]:
-    return sorted(_CASES.values(), key=lambda c: c.sort_key)
-
-
-def _tainted_values(case: CaseFile) -> list[str]:
-    """Indicator strings that came out of a reported artefact.
-
-    P001 refuses to let anything be sent *to* one of these. Recomputed here
-    rather than trusted from the request, because the request is not trusted.
+    202 rather than 200 on purpose: nothing has been analysed yet, and pretending
+    otherwise would make the response a promise the system has not kept.
     """
-    if not case.intake:
-        return []
-    return [k.split(":", 1)[1] for k in sorted(indicator_keys(case.intake.indicators))]
-
-
-def _campaign_view() -> list[dict[str, Any]]:
-    """Active campaigns, computed from the durable store rather than the queue.
-
-    Uses exactly the clustering and threshold functions the pipeline uses, so
-    the panel cannot show a campaign the pipeline would not have fired on.
-    """
-    s = settings()
-    records = list(iter_records(s.community_id, s.campaign_window_days))
-    by_id = {c.report.report_id: c for c in _CASES.values()}
-    out: list[dict[str, Any]] = []
-
-    for cluster in build_clusters(records):
-        if not meets_threshold(cluster):
-            continue
-        label = (sorted(f for f in cluster.fingerprints if f) or ["unnamed script"])[0]
-        bands: dict[str, int] = {}
-        for rid in cluster.report_ids:
-            case = by_id.get(rid)
-            band = case.stage.urgency.value if case and case.stage else "green"
-            bands[band] = bands.get(band, 0) + 1
-        span = max((cluster.last_seen - cluster.first_seen).days, 1)
-        out.append({
-            "campaign_id": cluster.campaign_id,
-            "campaign_label": f"Crew running '{label}'",
-            "script_fingerprint": label,
-            "member_report_ids": cluster.report_ids,
-            "report_count": len(cluster.members),
-            "distinct_reporters": cluster.distinct_reporters,
-            "areas_affected": cluster.areas,
-            "shared_indicators": sorted(cluster.shared_indicators),
-            "first_seen": cluster.first_seen.isoformat(),
-            "last_seen": cluster.last_seen.isoformat(),
-            "span_days": span,
-            "confidence": cluster.confidence(),
-            "bands": bands,
-            "why": (
-                f"{len(cluster.members)} reports from {cluster.distinct_reporters} residents in "
-                f"{span} day(s), sharing "
-                f"{', '.join(sorted(cluster.shared_indicators)) or 'the same script'}"
-                + (f", {len(cluster.areas)} area(s): {', '.join(cluster.areas)}."
-                   if cluster.areas else ".")
-            ),
-        })
-
-    out.sort(key=lambda c: (-c["report_count"], c["campaign_id"]))
-    return out
-
-
-# --------------------------------------------------------------------------
-# The four endpoints
-# --------------------------------------------------------------------------
-@app.post("/report")
-def post_report(submission: ReportSubmission) -> dict[str, Any]:
-    """Run one report through the whole graph and return its case file."""
-    report = submission.to_report()
-    with _PIPELINE_LOCK:
-        case = process_report(report)
-        _CASES[report.report_id] = case
-    return _case_detail(case)
-
-
-@app.get("/queue")
-def get_queue() -> dict[str, Any]:
-    """The work, ordered by hours to irreversible loss — not by scam likelihood."""
-    cases = _sorted_cases()
-    counts: dict[str, int] = {"black": 0, "red": 0, "amber": 0, "green": 0}
-    for c in cases:
-        band = c.stage.urgency.value if c.stage else "green"
-        counts[band] = counts.get(band, 0) + 1
-    campaigns = _campaign_view()
-    return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "community_id": settings().community_id,
-        "pack": active_pack().display_name,
-        "offline": settings().offline,
-        "policy_backend": backend_name(),
-        "counts": counts,
-        "total": len(cases),
-        "campaign_count": len(campaigns),
-        "injection_flagged": sum(
-            1 for c in cases if c.intake and c.intake.contains_injection_attempt
-        ),
-        "items": [_queue_item(c) for c in cases],
-    }
-
-
-@app.get("/campaigns")
-def get_campaigns() -> dict[str, Any]:
-    """Clusters that cleared volume, breadth and evidence."""
-    campaigns = _campaign_view()
-    return {"count": len(campaigns), "campaigns": campaigns}
-
-
-@app.post("/approve")
-def post_approve(req: ApprovalRequest) -> dict[str, Any]:
-    """Mint a coordinator approval token and re-evaluate the draft against policy.
-
-    This is the human-in-the-loop, expressed as code rather than as a promise.
-    The same Cedar rule set that denied the draft when the agent produced it is
-    re-run here with an approval token attached — so P002 is satisfied by a
-    named person, while P001 (never contact a reported endpoint), P003 (no raw
-    identifiers) and P004 (broadcast rate limit) still apply and can still
-    refuse. Approval is not an override.
-    """
-    case = _CASES.get(req.report_id)
-    if case is None:
-        raise HTTPException(status_code=404, detail=f"unknown report {req.report_id}")
-    if not case.response:
-        raise HTTPException(status_code=409, detail="this case produced no drafts")
-
-    draft = next((d for d in case.response.drafts if d.kind.value == req.draft_kind), None)
-    if draft is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"no {req.draft_kind!r} draft on {req.report_id}",
-        )
-
-    action = DRAFT_ACTIONS[draft.kind.value]
-    # The token is minted by the policy module, scoped to this action, and
-    # recorded against a named human. Nothing else in the system can produce one
-    # that P002 will accept — which is what makes "a report cannot approve
-    # itself" a property of the design rather than of the current call graph.
-    token = mint_approval(req.approver, action, draft.intended_recipient)
-
-    with _PIPELINE_LOCK:
-        decision = evaluate(
-            action,
-            target=draft.intended_recipient,
-            payload=draft.body,
-            approval_token=token,
-            reported_indicators=_tainted_values(case),
-            report_id=req.report_id,
-            campaign_id=(case.campaign.match.campaign_id
-                         if case.campaign and case.campaign.match else ""),
-            origin="coordinator",
-        )
-        if decision.allowed:
-            # Only a permitted broadcast counts against the P004 window. An
-            # attempt that was already refused must not consume the budget.
-            if action in {"broadcast.send", "sms.send"}:
-                from .policy import _BROADCAST_LOG  # noqa: PLC0415 — same package
-
-                _BROADCAST_LOG.append(decision.at)
-                spend_approval(token)
-            draft.requires_approval = False
-            _APPROVALS.setdefault(req.report_id, []).append({
-                "draft_kind": draft.kind.value,
-                "title": draft.title,
-                "approver": req.approver,
-                "note": req.note,
-                "action": action,
-                "policy_id": decision.policy_id,
-                "approved_at": datetime.now(timezone.utc).isoformat(),
-                # The token itself is a capability. The audit trail names the
-                # human and the decision; it does not reprint the credential.
-                "token_issued": True,
-            })
-        case.policy_events = recent_audit(40)
-
-    body = {
-        "report_id": req.report_id,
-        "draft_kind": draft.kind.value,
-        "allowed": decision.allowed,
-        "decision": decision.to_audit(),
-        "approvals": _APPROVALS.get(req.report_id, []),
-    }
-    if not decision.allowed:
-        # 403 with the reason attached: the refusal is the product, not an error.
-        return JSONResponse(status_code=403, content=body)
-    return body
-
-
-# --------------------------------------------------------------------------
-# Supporting endpoints — the dashboard's other two panels, and demo control
-# --------------------------------------------------------------------------
-@app.get("/audit")
-def get_audit(limit: int = 40, effect: Optional[str] = None) -> dict[str, Any]:
-    """The policy decision trail. This is what the camera points at.
-
-    ``effect=forbid`` filters the *whole* trail and then takes the tail, rather
-    than filtering a tail that has already been taken. That distinction is the
-    difference between the dashboard's "Denied only" button showing the refusals
-    and showing an empty panel: replaying a corpus writes hundreds of permits,
-    and a few dozen of those are enough to push every denial out of the window.
-    """
-    from .policy import AUDIT, Effect
-
-    n = max(1, min(limit, 500))
-    if effect in {"permit", "forbid"}:
-        wanted = Effect(effect)
-        events = [d.to_audit() for d in AUDIT if d.effect is wanted][-n:]
-    else:
-        events = recent_audit(n)
-
-    return {
-        "backend": backend_name(),
-        # The count is over the whole trail, not the returned page. "8 denied"
-        # has to mean eight denials, not eight denials you can currently see.
-        "denials": sum(1 for d in AUDIT if d.effect is Effect.FORBID),
-        "returned": len(events),
-        "events": list(reversed(events)),
-    }
-
-
-@app.get("/case/{report_id}")
-def get_case(report_id: str) -> dict[str, Any]:
-    case = _CASES.get(report_id)
-    if case is None:
-        raise HTTPException(status_code=404, detail=f"unknown report {report_id}")
-    return _case_detail(case)
-
-
-@app.post("/reset")
-def post_reset() -> dict[str, Any]:
-    """Clear the queue, the community store and the audit trail.
-
-    Present so a demo can be re-run from a clean slate without restarting the
-    process or hunting for the JSON file.
-    """
-    with _PIPELINE_LOCK:
-        _CASES.clear()
-        _APPROVALS.clear()
-        get_store().clear(settings().community_id)
-        reset_audit()
-    return {"ok": True, "detail": "queue, community store and audit trail cleared"}
+    result = ingest.accept(submission.to_report())
+    if not result["accepted"]:
+        raise HTTPException(status_code=409, detail=result["reason"])
+    return result
 
 
 @app.post("/replay")
@@ -399,24 +160,18 @@ def post_replay(
     limit: int = Body(0, embed=True),
     exclude: list[str] = Body(default_factory=list, embed=True),
     hold_campaign_tail: bool = Body(True, embed=True),
+    wait: bool = Body(True, embed=True),
 ) -> dict[str, Any]:
-    """Warm the store from a corpus directory.
+    """Feed a corpus through the *same* ingestion path a webhook would use.
 
-    Campaign correlation only has anything to say once the community store holds
-    history, so this is the demo's setup step — and doing it from the dashboard
-    rather than a second terminal removes the most fragile moment in a recording.
+    ``hold_campaign_tail`` defaults to True. Loading the whole corpus puts the
+    finished campaign on screen before the coordinator has done anything, which
+    turns the one thing worth watching into a fact the page was already sitting
+    on. Held back, each planted campaign sits one report short of threshold, and
+    the next report to arrive is what fires it.
 
-    ``hold_campaign_tail`` defaults to **True**, and that default is deliberate.
-    Loading the whole corpus puts the finished campaign on screen before the
-    coordinator has done anything, which turns the one thing worth watching into
-    a fact the page was already sitting on. With the tail held back, each planted
-    campaign is left one report short of threshold — so the next report that
-    arrives is what fires it, live.
-
-    Which reports to hold is read from ``eval/labels.json`` (the corpus
-    generator's own ground truth) rather than hard-coded, so regenerating the
-    corpus cannot silently spoil the demo. ``exclude`` still works and is added
-    on top for anything you want held back by hand.
+    Which reports to hold is read from the corpus generator's own ground truth
+    rather than hard-coded, so regenerating the corpus cannot spoil the demo.
     """
     from .config import REPO_ROOT
 
@@ -434,32 +189,24 @@ def post_replay(
     if limit > 0:
         raw = raw[:limit]
 
-    processed = 0
-    with _PIPELINE_LOCK:
-        for entry in raw:
-            report = Report(**{k: v for k, v in entry.items() if not k.startswith("_")})
-            if report.report_id in _CASES:
-                continue
-            _CASES[report.report_id] = process_report(report)
-            processed += 1
+    queued = 0
+    for entry in raw:
+        report = Report(**{k: v for k, v in entry.items() if not k.startswith("_")})
+        if ingest.accept(report).get("queued"):
+            queued += 1
 
-    campaigns = _campaign_view()
-    return {"ok": True, "processed": processed, "held_back": sorted(held),
-            "queue_size": len(_CASES), "campaign_count": len(campaigns),
-            "detail": (
-                f"{len(held)} report(s) held back so the campaign is one short of "
-                f"threshold. Submit one of them to fire it."
-                if held else "whole corpus loaded; campaigns are already visible"
-            )}
+    tally = ingest.drain() if wait else {}
+    return {
+        "ok": True, "queued": queued, "held_back": sorted(held), "processed": tally,
+        "campaign_count": len(db.list_campaigns(settings().community_id)),
+        "detail": (f"{len(held)} report(s) held back so the campaign sits one short of "
+                   f"threshold. Submit one of them to fire it."
+                   if held else "whole corpus loaded; campaigns are already visible"),
+    }
 
 
 def _campaign_tail(labels_path: Path) -> set[str]:
-    """Members to withhold so each planted campaign sits one report below threshold.
-
-    Keeps ``campaign_min_reports - 1`` of each campaign's members and holds the
-    rest. Returns an empty set if there is no ground truth to read, because a
-    missing labels file is a reason to load everything, not to fail the demo.
-    """
+    """Members to withhold so each planted campaign sits one report below threshold."""
     try:
         labels = json.loads(labels_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -473,6 +220,270 @@ def _campaign_tail(labels_path: Path) -> set[str]:
 
 
 # --------------------------------------------------------------------------
+# The decision inbox
+# --------------------------------------------------------------------------
+def _mode_badges() -> dict[str, Any]:
+    s = settings()
+    return {
+        "model": "Offline demo" if s.offline else "Live model",
+        "tools": "Fixture-backed tools" if fixtures.enabled() else "Live feeds",
+        "delivery": "Sandbox delivery",
+        "policy_backend": backend_name(),
+        "auth": "Dev auth — records who approved, does not verify identity",
+        "ingest": "Open webhook" if not s.ingest_token else "Token-protected webhook",
+        "pack": active_pack().display_name,
+    }
+
+
+def _case_view(case: Any) -> dict[str, Any]:
+    return {
+        "case_id": case.case_id,
+        "state": case.state.value,
+        "urgency": case.urgency,
+        # None renders as "unknown". Inventing a number here would put a
+        # fabricated figure at the top of a triage queue.
+        "hours_to_irreversible": case.hours_to_irreversible,
+        "script_fingerprint": case.script_fingerprint,
+        "impersonated_entity": case.impersonated_entity,
+        "money_rail": case.money_rail,
+        "reporter": case.reporter_pseudonym,
+        "area": case.reporter_area,
+        "campaign_id": case.campaign_id,
+        "summary": case.summary,
+        "report_count": case.report_count,
+        "report_ids": case.report_ids,
+        "updated_at": case.updated_at.isoformat(),
+    }
+
+
+def _decision_view(decision: Any) -> dict[str, Any]:
+    return {
+        "decision_id": decision.decision_id,
+        "kind": decision.kind,
+        "action": decision.action,
+        "title": decision.title,
+        "body": decision.body,
+        "audience": decision.audience,
+        "rationale": decision.rationale,
+        "case_id": decision.case_id,
+        "campaign_id": decision.campaign_id,
+        "state": decision.state.value,
+        "created_at": decision.created_at.isoformat(),
+        "resolved_by": decision.resolved_by,
+        "evidence": decision.evidence,
+    }
+
+
+def _campaign_view(campaign: Any) -> dict[str, Any]:
+    ev = campaign.evidence
+    return {
+        "campaign_id": campaign.campaign_id,
+        "label": campaign.label,
+        "report_count": len(campaign.report_ids),
+        "report_ids": campaign.report_ids,
+        "distinct_reporters": ev.distinct_reporters,
+        "shared_indicators": ev.shared_indicators,
+        "script_fingerprints": ev.script_fingerprints,
+        "areas": ev.areas,
+        "span_days": ev.span_days,
+        "confidence": campaign.confidence,
+        "links": ev.links,
+        "first_seen": campaign.first_seen.isoformat(),
+        "last_seen": campaign.last_seen.isoformat(),
+        "escalated_by_report_id": campaign.escalated_by_report_id,
+    }
+
+
+@app.get("/inbox")
+def get_inbox(mark_seen: bool = True,
+              who: str = Header(default="coordinator", alias="X-Coordinator")) -> dict[str, Any]:
+    """The default screen. Answers, in order:
+
+    1. what Porchlight handled while nobody was watching;
+    2. what needs a decision;
+    3. everything else, as a case list.
+    """
+    s = settings()
+    since = _LAST_SEEN.get(who, _STARTED_AT)
+    cases = db.list_cases(s.community_id)
+    decisions = db.list_decisions(s.community_id, DecisionState.PENDING)
+    campaigns = db.list_campaigns(s.community_id)
+
+    handled = {
+        "since": since.isoformat(),
+        "processed": db.count_reports(s.community_id, ReportState.PROCESSED),
+        "duplicates_folded": db.count_reports(s.community_id, ReportState.DUPLICATE),
+        "needs_review": db.count_reports(s.community_id, ReportState.NEEDS_REVIEW),
+        "failed": db.count_reports(s.community_id, ReportState.FAILED),
+        "cases_open": sum(1 for c in cases if c.state is not CaseState.CLOSED),
+        "cases_merged": sum(1 for c in cases if c.report_count > 1),
+        "campaigns_found": len(campaigns),
+        "escalated": sum(1 for c in cases if c.state is CaseState.ESCALATED),
+        "policy_denials": db.count_audit("forbid"),
+    }
+    if mark_seen:
+        _LAST_SEEN[who] = utcnow()
+
+    bands = {"black": 0, "red": 0, "amber": 0, "green": 0}
+    for case in cases:
+        bands[case.urgency] = bands.get(case.urgency, 0) + 1
+
+    return {
+        "generated_at": utcnow().isoformat(),
+        "community_id": s.community_id,
+        "modes": _mode_badges(),
+        "handled_while_away": handled,
+        "decisions": [_decision_view(d) for d in decisions],
+        "bands": bands,
+        "cases": [_case_view(c) for c in _sorted_cases(cases)],
+        "campaigns": [_campaign_view(c) for c in campaigns],
+        "worker_running": ingest.worker().running,
+        "jobs": db.job_counts(),
+        "failed_jobs": db.list_failed_jobs(5),
+    }
+
+
+def _sorted_cases(cases: list[Any]) -> list[Any]:
+    """Sorted by distance to irreversible loss, not by scam likelihood.
+
+    Unknown hours sort last within their band rather than being treated as zero —
+    "we do not know" is not "we have plenty of time", but it is also not a reason
+    to outrank a case with a measured two-hour window.
+    """
+    order = {"black": 0, "red": 1, "amber": 2, "green": 3}
+    return sorted(cases, key=lambda c: (order.get(c.urgency, 4),
+                                        c.hours_to_irreversible
+                                        if c.hours_to_irreversible is not None else 1e9))
+
+
+@app.get("/cases")
+def get_cases() -> dict[str, Any]:
+    cases = db.list_cases(settings().community_id)
+    return {"count": len(cases), "cases": [_case_view(c) for c in _sorted_cases(cases)]}
+
+
+@app.get("/case/{case_id}")
+def get_case(case_id: str) -> dict[str, Any]:
+    case = db.get_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"unknown case {case_id}")
+    reports = [db.get_report(rid) for rid in case.report_ids]
+    return {
+        **_case_view(case),
+        "reports": [r for r in reports if r],
+        "campaign": (_campaign_view(db.get_campaign(case.campaign_id))
+                     if case.campaign_id and db.get_campaign(case.campaign_id) else None),
+    }
+
+
+@app.get("/campaigns")
+def get_campaigns() -> dict[str, Any]:
+    campaigns = db.list_campaigns(settings().community_id)
+    return {"count": len(campaigns), "campaigns": [_campaign_view(c) for c in campaigns]}
+
+
+# --------------------------------------------------------------------------
+# Decisions
+# --------------------------------------------------------------------------
+@app.get("/decisions")
+def get_decisions(state: Optional[str] = None) -> dict[str, Any]:
+    wanted = DecisionState(state) if state else None
+    decisions = db.list_decisions(settings().community_id, wanted)
+    return {"count": len(decisions), "decisions": [_decision_view(d) for d in decisions]}
+
+
+@app.patch("/decisions/{decision_id}")
+def patch_decision(decision_id: str, edit: DecisionEdit,
+                   who: str = Depends(coordinator)) -> dict[str, Any]:
+    """Edit a draft before approving it.
+
+    No approval is revoked here and none needs to be: a capability is bound to
+    the message digest, so an edited body simply stops matching. Invalidation is
+    a property of the data model, not a cleanup step someone must remember.
+    """
+    try:
+        decision = approvals.edit_decision(decision_id, edit.body, edit.title)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown decision {decision_id}") from None
+    return _decision_view(decision)
+
+
+@app.post("/decisions/{decision_id}/approve")
+def post_approve(decision_id: str, note: DecisionNote = DecisionNote(),
+                 who: str = Depends(coordinator)) -> dict[str, Any]:
+    """Approve one decision. The only path in the system that delivers anything.
+
+    A policy denial comes back as 403 with the rule that refused it. The refusal
+    is the product, not an error — and the coordinator's approval is not consumed
+    by a send that never happened.
+    """
+    try:
+        result = approvals.approve(decision_id, who, note.note)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown decision {decision_id}") from None
+    except approvals.ApprovalError as exc:
+        return JSONResponse(status_code=409, content={"allowed": False, "reason": exc.reason,
+                                                      "policy_id": exc.policy_id})
+    if not result["allowed"]:
+        return JSONResponse(status_code=403, content=result)
+    return result
+
+
+@app.post("/decisions/{decision_id}/reject")
+def post_reject(decision_id: str, note: DecisionNote = DecisionNote(),
+                who: str = Depends(coordinator)) -> dict[str, Any]:
+    try:
+        decision = approvals.reject_decision(decision_id, who, note.note)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown decision {decision_id}") from None
+    return _decision_view(decision)
+
+
+# --------------------------------------------------------------------------
+# Audit, outbox, reset
+# --------------------------------------------------------------------------
+@app.get("/audit")
+def get_audit(limit: int = 40, effect: Optional[str] = None) -> dict[str, Any]:
+    """The policy decision trail.
+
+    ``effect=forbid`` filters the whole trail in SQL and then takes the tail,
+    rather than filtering a tail already taken. That distinction is the
+    difference between "Denied only" showing the refusals and showing an empty
+    panel: a replay writes hundreds of permits.
+    """
+    n = max(1, min(limit, 500))
+    return {
+        "backend": backend_name(),
+        "denials": db.count_audit("forbid"),
+        "total": db.count_audit(),
+        "events": db.list_audit(n, effect),
+    }
+
+
+@app.get("/outbox")
+def get_outbox(limit: int = 50) -> dict[str, Any]:
+    """Everything that was 'delivered'. All of it sandboxed, all of it labelled."""
+    messages = db.list_outbox(limit)
+    return {"count": len(messages), "sandbox": True,
+            "note": "Porchlight has no real sender. This is the whole delivery surface.",
+            "messages": messages}
+
+
+@app.post("/reset")
+def post_reset() -> dict[str, Any]:
+    """Clear everything so the demo can be re-run without editing files."""
+    db.reset()
+    _LAST_SEEN.clear()
+    from .policy import reset_audit
+    from .tools.store import get_store
+
+    get_store().clear(settings().community_id)
+    reset_audit()
+    return {"ok": True, "detail": "reports, cases, campaigns, decisions, approvals, "
+                                  "audit trail and sandbox outbox cleared"}
+
+
+# --------------------------------------------------------------------------
 # AgentCore Runtime contract + static dashboard
 # --------------------------------------------------------------------------
 @app.get("/ping")
@@ -483,12 +494,15 @@ def ping() -> dict[str, str]:
 
 @app.get("/healthz")
 def healthz() -> dict[str, Any]:
+    s = settings()
     return {
         "status": "ok",
-        "offline": settings().offline,
-        "pack": settings().pack_name,
+        "offline": s.offline,
+        "pack": s.pack_name,
         "policy_backend": backend_name(),
-        "queue_size": len(_CASES),
+        "worker_running": ingest.worker().running,
+        "cases": len(db.list_cases(s.community_id)),
+        "jobs": db.job_counts(),
     }
 
 
@@ -496,9 +510,9 @@ def healthz() -> dict[str, Any]:
 def invocations(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:
     """AgentCore Runtime entry point.
 
-    Accepts either a full report body or the ``{"prompt": "..."}`` shape the
-    runtime sends by default, so the same container answers both the dashboard
-    and an AgentCore invocation.
+    Synchronous, unlike ``POST /reports``: the Runtime contract expects a result
+    in the response, so this accepts, drains, and returns the finished case
+    rather than a 202 the caller cannot act on.
     """
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="payload must be a JSON object")
@@ -515,7 +529,23 @@ def invocations(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[st
         reporter_area=str(payload.get("reporter_area", "")),
         report_id=payload.get("report_id"),
     )
-    return post_report(submission)
+    report = submission.to_report()
+    accepted = ingest.accept(report)
+    ingest.drain()
+
+    row = db.get_report(report.report_id) or {}
+    case = db.get_case(row.get("case_id") or "") if row.get("case_id") else None
+    return {
+        "report_id": report.report_id,
+        "accepted": accepted,
+        "state": row.get("state"),
+        "case": _case_view(case) if case else None,
+        "campaign": (_campaign_view(db.get_campaign(case.campaign_id))
+                     if case and case.campaign_id and db.get_campaign(case.campaign_id)
+                     else None),
+        "pending_decisions": len(db.list_decisions(settings().community_id,
+                                                   DecisionState.PENDING)),
+    }
 
 
 @app.get("/")

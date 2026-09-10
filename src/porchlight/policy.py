@@ -19,14 +19,16 @@ that lives in a system prompt is a request. A control that lives here is a rule.
 """
 from __future__ import annotations
 
+import logging
 import re
-import secrets
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
 
 from .config import settings
+
+log = logging.getLogger(__name__)
 
 
 class Effect(str, Enum):
@@ -109,49 +111,49 @@ def _r_no_contact_reported_endpoints(action: str, ctx: dict) -> Decision | None:
 # --------------------------------------------------------------------------
 # Human authority
 # --------------------------------------------------------------------------
-# Approval tokens this process actually minted, and what each one is good for.
-# A token is not something the policy engine trusts because it is non-empty; it
-# is a capability this module issued to a named human, for one artefact, once.
+# A capability the coordinator approval flow issued, looked up in the approvals
+# table. A token is not something the policy engine trusts because it is
+# non-empty; it is a record this system wrote about a named human approving one
+# artefact, once.
 #
 # That distinction is the whole point. "No code path currently sets
 # approval_token from report content" is an accident of wiring that a refactor
 # can undo. "Report content cannot mint authority" is a property: untrusted text
-# can put any string it likes in front of P002, and none of them are in here.
+# can put any string it likes in front of P002, and none of them are in the table.
+#
+# The registry is the database rather than a dict in this module so that the
+# background worker and the web process cannot disagree about whether a
+# capability has been spent — and so that a restart does not silently reset the
+# rate-limit window and the spend record.
 _APPROVAL_ROLE = "coalition_coordinator"
-_MINTED_APPROVALS: dict[str, dict[str, Any]] = {}
 
 
-def mint_approval(approver: str, action: str, resource: str) -> str:
+def mint_approval(approver: str, action: str, resource: str, body: str = "") -> str:
     """Issue a single-use approval capability to a named human.
 
-    Called from exactly one place: the coordinator's ``POST /approve`` handler.
-    The agent has no route to this function and no route to that endpoint.
+    Reachable only from the coordinator's approval endpoint. The agent has no
+    route to this function and no route to that endpoint.
     """
-    if not approver or not approver.strip():
-        raise ValueError("an approval must name a human")
-    token = f"coord:{approver.strip()}:{secrets.token_hex(8)}"
-    _MINTED_APPROVALS[token] = {
-        "approver": approver.strip(),
-        "role": _APPROVAL_ROLE,
-        "action": action,
-        "resource": resource,
-        "issued_at": time.time(),
-        "spent": False,
-    }
-    return token
+    from . import approvals  # noqa: PLC0415 — deferred to avoid an import cycle
+
+    return approvals.mint(approver, action, resource, body,
+                          case_id="", decision_id="").token
 
 
 def approval_holder(token: str | None) -> str:
     """Name the human behind a token, or "" if it was not issued by us."""
-    rec = _MINTED_APPROVALS.get(str(token or ""))
-    return rec["approver"] if rec else ""
+    from . import db  # noqa: PLC0415
+
+    approval = db.get_approval(str(token or ""))
+    return approval.approver if approval else ""
 
 
 def spend_approval(token: str | None) -> None:
     """Burn a token once its action was permitted. An approval is not a licence."""
-    rec = _MINTED_APPROVALS.get(str(token or ""))
-    if rec:
-        rec["spent"] = True
+    from . import db  # noqa: PLC0415
+
+    if token:
+        db.spend_approval_atomic(str(token))
 
 
 def _r_broadcast_requires_approval(action: str, ctx: dict) -> Decision | None:
@@ -162,11 +164,15 @@ def _r_broadcast_requires_approval(action: str, ctx: dict) -> Decision | None:
     caller — it is read from the mint registry, so the only way to satisfy this
     rule is to have gone through the coordinator approval flow.
     """
+    from . import db  # noqa: PLC0415 — deferred to avoid an import cycle
+
     if action not in {"sms.send", "email.send", "flyer.publish", "broadcast.send"}:
         return None
     target = str(ctx.get("target", "resident-list"))
     token = str(ctx.get("approval_token") or "")
-    rec = _MINTED_APPROVALS.get(token)
+    approval = db.get_approval(token) if token else None
+    rec = ({"role": approval.role, "approver": approval.approver, "action": approval.action,
+            "spent": approval.spent, "expired": approval.expired()} if approval else None)
 
     if not token:
         return Decision(
@@ -187,6 +193,13 @@ def _r_broadcast_requires_approval(action: str, ctx: dict) -> Decision | None:
         return Decision(
             Effect.FORBID, "P002",
             f"Approval token carries role {rec['role']!r}, not {_APPROVAL_ROLE!r}.",
+            action, target, actor=rec["approver"],
+        )
+    if rec["expired"]:
+        return Decision(
+            Effect.FORBID, "P002",
+            "Approval has expired. Approvals are short-lived on purpose: permission to "
+            "send this message now is not a standing authorisation.",
             action, target, actor=rec["approver"],
         )
     if rec["spent"]:
@@ -235,6 +248,25 @@ def _r_no_raw_identifiers(action: str, ctx: dict) -> Decision | None:
 _BROADCAST_LOG: list[float] = []
 
 
+def _broadcasts_in_window(ctx: dict) -> int:
+    """How many broadcasts went out in the last 24h.
+
+    Prefers the durable count in the database, so a restart cannot silently
+    reset the window and hand an attacker a fresh budget by crashing the process.
+    Falls back to the in-process log for callers that evaluate a hypothetical
+    without a database — the red-team suite does this.
+    """
+    if "broadcasts_in_last_24h" in ctx:
+        return int(ctx["broadcasts_in_last_24h"])
+    try:
+        from . import db  # noqa: PLC0415
+
+        return db.broadcasts_since(24)
+    except Exception:  # noqa: BLE001 — no store configured; use the local window
+        now = time.time()
+        return len([t for t in _BROADCAST_LOG if now - t < 86400])
+
+
 def _r_rate_limit_broadcast(action: str, ctx: dict) -> Decision | None:
     """P004 — at most 2 community broadcasts per rolling 24h.
 
@@ -244,9 +276,7 @@ def _r_rate_limit_broadcast(action: str, ctx: dict) -> Decision | None:
     """
     if action not in {"broadcast.send", "sms.send"}:
         return None
-    now = time.time()
-    window = [t for t in _BROADCAST_LOG if now - t < 86400]
-    if len(window) >= 2:
+    if _broadcasts_in_window(ctx) >= 2:
         return Decision(
             Effect.FORBID, "P004",
             "Community broadcast rate limit reached (2 per 24h). Alert fatigue in a "
@@ -309,16 +339,42 @@ def _attribute(d: Decision, ctx: dict[str, Any]) -> Decision:
     return d
 
 
+def _record(d: Decision, ctx: dict[str, Any]) -> Decision:
+    """Append one decision to the audit trail — both copies of it.
+
+    The in-memory list is what a single ``process_report`` call attaches to its
+    case file. The durable table is what the coordinator's audit panel reads and
+    what survives a restart. Writing only the first is how the panel ends up
+    empty while the policy engine is demonstrably refusing things: two stores,
+    one of them invisible.
+    """
+    _attribute(d, ctx)
+    AUDIT.append(d)
+    try:
+        from . import db  # noqa: PLC0415
+        from .domain import AuditEvent  # noqa: PLC0415
+
+        db.append_audit(AuditEvent(
+            actor=d.actor, origin=d.origin, action=d.action, effect=d.effect.value,
+            policy_id=d.policy_id, reason=d.reason, resource=d.resource,
+            report_id=d.report_id, campaign_id=d.campaign_id,
+            case_id=str(ctx.get("case_id", "") or ""),
+            decision_id=str(ctx.get("decision_id", "") or ""),
+        ))
+    except Exception:  # noqa: BLE001 — no store configured; the in-memory trail stands
+        log.debug("no durable store for the audit trail", exc_info=True)
+    return d
+
+
 def evaluate(action: str, **ctx: Any) -> Decision:
     """Evaluate one action. Default-deny: an unmatched action is forbidden."""
     for rule in RULES:
         d = rule(action, ctx)
         if d is not None:
-            AUDIT.append(_attribute(d, ctx))
-            return d
+            return _record(d, ctx)
     d = Decision(Effect.PERMIT, "P000", "No forbidding rule matched an allow-listed action.",
                  action, str(ctx.get("target", "")))
-    AUDIT.append(_attribute(d, ctx))
+    _record(d, ctx)
     return d
 
 
@@ -328,7 +384,17 @@ def enforce(action: str, **ctx: Any) -> Decision:
     if not d.allowed:
         raise PolicyDenied(d)
     if action in {"broadcast.send", "sms.send"}:
+        # Record in both places. The durable count is what P004 reads, so a
+        # broadcast that only incremented the in-process list would leave the
+        # rate limit permanently unspent — and the limit exists precisely to
+        # survive the thing that resets process state.
         _BROADCAST_LOG.append(time.time())
+        try:
+            from . import db  # noqa: PLC0415
+
+            db.record_broadcast(str(ctx.get("target", "")))
+        except Exception:  # noqa: BLE001 — no store configured; local window stands
+            log.debug("no durable store for the broadcast window", exc_info=True)
         spend_approval(ctx.get("approval_token"))
     return d
 
@@ -340,7 +406,6 @@ def recent_audit(n: int = 50) -> list[dict[str, Any]]:
 def reset_audit() -> None:
     AUDIT.clear()
     _BROADCAST_LOG.clear()
-    _MINTED_APPROVALS.clear()
 
 
 def backend_name() -> str:
