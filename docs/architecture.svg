@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 720" width="980" height="720"
+     font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Porchlight architecture</title>
+  <desc id="desc">Reports arrive by webhook or replay into a durable queue. A background worker
+  runs each report through four Strands agents and a deterministic correlation module. Everything
+  that could reach a resident passes a Cedar policy gate and then stops at a human decision. Only an
+  approved decision is delivered, and only to a sandbox outbox.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4e5754"/>
+    </marker>
+    <marker id="arrow-deny" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ab2e1c"/>
+    </marker>
+    <style>
+      .lbl   { font-size: 13px; fill: #1b211e; }
+      .sm    { font-size: 11px; fill: #4e5754; }
+      .xs    { font-size: 10px; fill: #6d7873; }
+      .hdr   { font-size: 11.5px; font-weight: 600; fill: #4e5754; letter-spacing: .01em; }
+      .box   { fill: #f8f9f7; stroke: #cfd4cd; stroke-width: 1.2; }
+      .det   { fill: #eef1ec; stroke: #9aa79f; stroke-width: 1.4; }
+      .gate  { fill: #f6ebd4; stroke: #7d5504; stroke-width: 1.6; }
+      .human { fill: #dfece5; stroke: #1d6444; stroke-width: 1.6; }
+      .deny  { fill: #f6e0da; stroke: #ab2e1c; stroke-width: 1.4; }
+      .flow  { stroke: #4e5754; stroke-width: 1.4; fill: none; marker-end: url(#arrow); }
+      .flow-deny { stroke: #ab2e1c; stroke-width: 1.4; fill: none; marker-end: url(#arrow-deny); }
+      .trust { stroke: #ab2e1c; stroke-width: 1.6; stroke-dasharray: 7 5; fill: none; }
+      .zone  { fill: none; stroke: #cfd4cd; stroke-width: 1; stroke-dasharray: 3 4; }
+    </style>
+  </defs>
+
+  <rect width="980" height="720" fill="#eceee9"/>
+
+  <!-- ================= trust boundary ================= -->
+  <rect class="trust" x="18" y="86" width="944" height="322" rx="10"/>
+  <text class="hdr" x="30" y="106" fill="#ab2e1c">TRUST BOUNDARY — everything inside reads attacker-authored text</text>
+
+  <!-- ================= inbound ================= -->
+  <text class="hdr" x="30" y="42">INBOUND</text>
+  <rect class="box" x="26" y="50" width="150" height="30" rx="6"/>
+  <text class="lbl" x="38" y="70">POST /reports (webhook)</text>
+  <rect class="box" x="196" y="50" width="150" height="30" rx="6"/>
+  <text class="lbl" x="208" y="70">Replay / corpus source</text>
+
+  <path class="flow" d="M 101 80 L 101 118"/>
+  <path class="flow" d="M 271 80 L 271 104 L 108 104 L 108 118"/>
+  <text class="xs" x="286" y="99">same code path</text>
+
+  <!-- ================= queue ================= -->
+  <rect class="det" x="26" y="120" width="200" height="52" rx="6"/>
+  <text class="lbl" x="38" y="140">Durable queue (SQLite)</text>
+  <text class="xs" x="38" y="156">idempotency key · atomic claim</text>
+  <text class="xs" x="38" y="167">bounded retry · never dropped</text>
+
+  <path class="flow" d="M 226 146 L 268 146"/>
+
+  <!-- ================= worker + pipeline ================= -->
+  <rect class="zone" x="268" y="112" width="480" height="286" rx="8"/>
+  <text class="hdr" x="280" y="130">BACKGROUND WORKER — runs with nobody watching</text>
+
+  <rect class="det" x="282" y="140" width="200" height="42" rx="6"/>
+  <text class="lbl" x="294" y="158">Dedup &amp; case merge</text>
+  <text class="xs" x="294" y="173">per reporter, never across people</text>
+
+  <rect class="box" x="282" y="192" width="200" height="42" rx="6"/>
+  <text class="lbl" x="294" y="210">1 · Intake agent</text>
+  <text class="xs" x="294" y="225">no tools · names missing evidence</text>
+
+  <rect class="box" x="282" y="244" width="200" height="42" rx="6"/>
+  <text class="lbl" x="294" y="262">2 · Corroboration agent</text>
+  <text class="xs" x="294" y="277">4 allow-listed, fixture-backed tools</text>
+
+  <rect class="box" x="282" y="296" width="200" height="42" rx="6"/>
+  <text class="lbl" x="294" y="314">3 · Stage swarm</text>
+  <text class="xs" x="294" y="329">3 assessors · hours to loss</text>
+
+  <rect class="box" x="282" y="348" width="200" height="42" rx="6"/>
+  <text class="lbl" x="294" y="366">4 · Campaign agent</text>
+  <text class="xs" x="294" y="381">judges the cluster, does not build it</text>
+
+  <path class="flow" d="M 382 182 L 382 192"/>
+  <path class="flow" d="M 382 234 L 382 244"/>
+  <path class="flow" d="M 382 286 L 382 296"/>
+  <path class="flow" d="M 382 338 L 382 348"/>
+
+  <!-- correlation, deliberately outside the agents -->
+  <rect class="det" x="516" y="316" width="216" height="74" rx="6"/>
+  <text class="lbl" x="528" y="336">Correlation — deterministic</text>
+  <text class="xs" x="528" y="352">union-find over hard indicators</text>
+  <text class="xs" x="528" y="364">a link needs 2 indicators, or 1 + script</text>
+  <text class="xs" x="528" y="376">prose cannot argue its way in or out</text>
+
+  <path class="flow" d="M 482 369 L 516 369"/>
+  <path class="flow" d="M 624 316 L 624 300 L 500 300 L 482 300"/>
+  <text class="xs" x="506" y="294">candidate cluster + evidence</text>
+
+  <!-- community memory -->
+  <rect class="det" x="516" y="140" width="216" height="60" rx="6"/>
+  <text class="lbl" x="528" y="160">Community memory</text>
+  <text class="xs" x="528" y="176">reports · indicators · cases</text>
+  <text class="xs" x="528" y="188">the coalition is the actor, never a resident</text>
+  <path class="flow" d="M 482 165 L 516 165"/>
+  <path class="flow" d="M 624 200 L 624 316"/>
+
+  <!-- ================= response ================= -->
+  <rect class="box" x="762" y="192" width="192" height="42" rx="6"/>
+  <text class="lbl" x="774" y="210">5 · Response agent</text>
+  <text class="xs" x="774" y="225">drafts only · no send tool exists</text>
+  <path class="flow" d="M 732 353 L 858 353 L 858 234"/>
+
+  <!-- ================= policy gate ================= -->
+  <rect class="gate" x="762" y="264" width="192" height="86" rx="6"/>
+  <text class="lbl" x="774" y="284" font-weight="600">POLICY GATE</text>
+  <text class="xs" x="774" y="300">Cedar rules, default-deny</text>
+  <text class="xs" x="774" y="312">P001 never contact reported endpoints</text>
+  <text class="xs" x="774" y="324">P002 no send without a named human</text>
+  <text class="xs" x="774" y="336">P003 identifiers · P004 rate · P005 deny</text>
+  <path class="flow" d="M 858 234 L 858 264"/>
+
+  <!-- denial path -->
+  <rect class="deny" x="762" y="418" width="192" height="46" rx="6"/>
+  <text class="lbl" x="774" y="437" fill="#ab2e1c">Denied → audit trail</text>
+  <text class="xs" x="774" y="452">who asked · which rule · which report</text>
+  <path class="flow-deny" d="M 858 350 L 858 418"/>
+
+  <!-- ================= human boundary ================= -->
+  <rect class="human" x="282" y="436" width="420" height="92" rx="8"/>
+  <text class="lbl" x="296" y="458" font-weight="600">HUMAN DECISION — the only thing that interrupts</text>
+  <text class="sm" x="296" y="478">One prepared ask, carrying its evidence.</text>
+  <text class="xs" x="296" y="495">Approval is a capability: one action, one audience, one message digest,</text>
+  <text class="xs" x="296" y="508">single use, short expiry. Editing the draft invalidates it.</text>
+  <text class="xs" x="296" y="521">It satisfies P002 only — P001, P003 and P004 still refuse.</text>
+
+  <path class="flow" d="M 762 300 L 720 300 L 720 470 L 702 470"/>
+  <text class="xs" x="712" y="462" text-anchor="end">permitted, pending a human</text>
+
+  <!-- ================= delivery ================= -->
+  <rect class="box" x="282" y="560" width="420" height="46" rx="6"/>
+  <text class="lbl" x="296" y="580">Sandbox outbox — the whole delivery surface</text>
+  <text class="xs" x="296" y="596">Porchlight has no real sender. Nothing leaves the process.</text>
+  <path class="flow" d="M 492 528 L 492 560"/>
+  <text class="xs" x="500" y="548">approved</text>
+
+  <!-- inbox -->
+  <rect class="box" x="26" y="436" width="200" height="92" rx="8"/>
+  <text class="lbl" x="38" y="458">Coordinator inbox</text>
+  <text class="xs" x="38" y="476">what was handled while away</text>
+  <text class="xs" x="38" y="490">what needs a decision</text>
+  <text class="xs" x="38" y="504">who to call first</text>
+  <text class="xs" x="38" y="518">traces + denials, folded away</text>
+  <path class="flow" d="M 282 482 L 226 482"/>
+
+  <!-- ================= AWS footprint ================= -->
+  <rect class="zone" x="26" y="632" width="928" height="66" rx="8"/>
+  <text class="hdr" x="38" y="652">AWS FOOTPRINT — stated as verified or not</text>
+  <text class="xs" x="38" y="670">Strands Agents (4 agents + swarm) · AgentCore Runtime contract served and container-tested · AgentCore Policy engine created and ACTIVE</text>
+  <text class="xs" x="38" y="686" fill="#ab2e1c">NOT VERIFIED: rules enforced at an AgentCore Gateway (no gateway built) · CloudWatch denials · Runtime deployment · AgentCore Memory backing the store</text>
+</svg>

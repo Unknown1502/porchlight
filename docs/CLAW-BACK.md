@@ -17,12 +17,12 @@ assume either.
 
 | # | Requirement | Status | Owner |
 |---|---|---|---|
-| 1 | Text description of the project | ◻ not written | agent → `docs/submission-copy.md` |
+| 1 | Text description of the project | ✅ drafted in `docs/submission-copy.md`, including an honest-status section | **HUMAN** to paste |
 | 2 | **Public** repo URL | ◻ repo is local-only, never pushed | **HUMAN** |
 | 3 | All source + setup instructions to run it | ✅ `README.md` quick start, `make install` verified against pinned deps | done |
 | 4 | MIT or Apache licence **visible in the repo About section** | ⚠ `LICENSE` (Apache-2.0) is at the repo root and declared in `pyproject.toml`; the *About section* is a GitHub UI field that only appears once the repo is pushed | **HUMAN** |
 | 5 | README | ✅ present, claims table, deployment status table | done |
-| 6 | Architecture diagram (image in repo) | ◻ mermaid source exists in `docs/architecture.md`; no rendered image | agent |
+| 6 | Architecture diagram (image in repo) | ✅ `docs/architecture.svg` — pipeline, trust boundary, human boundary, and a row stating what is *not* verified | done |
 | 7 | Demo video ≤ 5 min on YouTube/Vimeo, covering (1) problem (2) who it's for (3) why it matters | ◻ not recorded | **HUMAN** (script: `docs/demo-script.md`) |
 | 8 | AWS Builder ID | ◻ unknown whether one exists | **HUMAN** |
 | 9 | Live demo link (optional, strengthens Technical Implementation) | ◻ nothing deployed | **HUMAN** approval + agent |
@@ -34,7 +34,7 @@ assume either.
 
 | # | Requirement | Status | Owner |
 |---|---|---|---|
-| 13 | builder.aws.com post(s) about the build journey, **publicly published before the deadline** | ◻ not drafted | agent drafts → **HUMAN** publishes |
+| 13 | builder.aws.com post(s) about the build journey, **publicly published before the deadline** | ✅ three drafts in `docs/blog-drafts/` (background intake · deterministic correlation · approval as capability) | **HUMAN** publishes |
 
 Note on wording: the current published rule asks for *"Agents for Humans" in your
 title* — not a hashtag. Multiple posts are permitted. Confirm the exact wording on

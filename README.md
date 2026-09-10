@@ -67,16 +67,42 @@ community too.
 
 ## What it does
 
+Porchlight works the queue while nobody is watching, and interrupts once.
+
+Reports arrive by webhook. Unattended, it deduplicates repeat calls from the same
+resident, extracts indicators, runs allow-listed corroboration tools, merges
+follow-ups into existing cases, and correlates across people. When reports from
+*different* residents turn out to share a crew, it drafts a community warning and
+stops.
+
+The coordinator opens the inbox and sees three things, in this order:
+
 ```
-report ─► intake ─► corroboration ─► stage swarm ─► campaign ─► response ─► POLICY GATE ─► coordinator
-             │            │           (3 agents)        │                        │
-          no tools   4 allow-listed    Strands      deterministic           Cedar rules,
-                         tools          Swarm        clustering             default-deny
+  Since you last looked, Porchlight worked through 47 reports,
+  folded in 6 repeats and spotted 1 campaign.
+
+  NEEDS YOU  ── 1 ────────────────────────────────────────────
+  Warn the 411038 list — crew running 'parcel seized customs bribe'
+  Why now: 3 reports from 3 residents in 4 days, sharing
+     same callback number   +91 90000 00093
+     same payment handle    payee042@ybl
+  [ the warning, already written ]
+  Approve and send   ·   Save wording   ·   Not now
+
+  WHO TO CALL FIRST ──────────────────────────────────────────
+  BLACK   now   resident-204   money already moved
+  RED     2h    resident-101   payment instructed, not yet sent
+  AMBER   24h   resident-118   contacted, no payment discussed
 ```
 
-The queue is not sorted by "how likely is this a scam" — everything in it
+They approve, edit, or reject. That is the whole interaction.
+
+The case list is not sorted by "how likely is this a scam" — everything in it
 probably is. It is sorted by **hours to irreversible loss**, because that is the
-only ordering that tells a coordinator who to call first.
+only ordering that tells a coordinator who to call first. Where that is unknown
+it says "unknown", rather than a number nobody measured.
+
+Full pipeline and trust boundaries: **[docs/architecture.svg](docs/architecture.svg)**.
 
 ## Why this needs an agent
 
@@ -158,7 +184,7 @@ See **[docs/threat-model.md](docs/threat-model.md)**.
 
 ## Architecture
 
-Full diagram and rationale: **[docs/architecture.md](docs/architecture.md)**.
+Diagram: **[docs/architecture.svg](docs/architecture.svg)**. Rationale: **[docs/architecture.md](docs/architecture.md)**.
 
 ### Global core, local adapter
 
@@ -370,7 +396,11 @@ See `corpus/templates.yaml`.
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | Node graph, why each node exists, what is deliberately not a model decision |
 | [docs/threat-model.md](docs/threat-model.md) | Assets, adversaries, attack classes and their controls, known limits |
-| [docs/demo-script.md](docs/demo-script.md) | The five minutes, beat by beat |
+| [docs/architecture.svg](docs/architecture.svg) | The diagram: pipeline, trust boundary, human boundary, and what is not deployed |
+| [docs/demo-script.md](docs/demo-script.md) | The 3-minute and 5-minute cuts, beat by beat |
+| [docs/submission-copy.md](docs/submission-copy.md) | Devpost text, with an honest-status section |
+| [docs/CLAW-BACK.md](docs/CLAW-BACK.md) | Submission checklist, blockers, and what only a human can do |
+| [SUBMISSION-PREEXISTING.md](SUBMISSION-PREEXISTING.md) | Pre-existing work disclosure |
 | [docs/manual-baseline.md](docs/manual-baseline.md) | Why there is no time-saving claim, and how to earn one |
 | [docs/prompts.md](docs/prompts.md) | Every system prompt in full, generated from the source modules |
 | [policies/README.md](policies/README.md) | The Cedar rules, and what AgentCore does and does not accept |
