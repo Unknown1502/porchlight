@@ -12,7 +12,7 @@ Built with the [Strands Agents SDK](https://strandsagents.com) for the AWS
 *Agents for Humans* hackathon, **Good Neighbor Agents** track.
 
 ```
-Attribution F1 1.00 across 5 seeds · 0 false links · 184 tests · Apache-2.0
+Attribution F1 1.00 across 5 seeds · 0 false links · 197 tests · Apache-2.0
 ```
 
 Every number in this README is either measured by a command you can run, or
@@ -343,9 +343,14 @@ set and on what P002 demands — not merely on policy ids.
   It is a finding-generator, not a control.
 - **The corpus is synthetic.** Detection rates on it are a floor, not a field
   measurement.
-- **No authentication on the API.** `POST /approve` records *which* human
-  approved; it does not verify *that* they are that human. Real deployment needs
-  an IdP in front of it.
+- **No IdP in front of the API.** By default `POST /approve` records *which*
+  human approved; it does not verify *that* they are that human. Setting
+  `PORCHLIGHT_COORDINATOR_CREDENTIALS` closes the sharpest edge of that gap —
+  approving then requires the shared secret registered to that exact name, so
+  an unauthenticated caller or a name lifted from report content cannot mint a
+  capability — but it is still a shared secret, not a real identity provider:
+  no session, no rotation, no revocation list. Real deployment needs an IdP in
+  front of it.
 - **Two jurisdiction packs**, both written by one person from public sources, and
   neither reviewed by a practitioner in that jurisdiction.
 - **Single-process state.** The audit trail and rate-limit window are module
@@ -373,7 +378,7 @@ In the order that would matter most:
 | Hundreds of US counties run an elder-fraud network | Externally verified | CFPB[^cfpb] |
 | Attribution F1 1.00, link precision 1.00, 0 false links | Measured | `python tasks.py seeds`, 5 seeds |
 | Held-out injection recall 0.14-0.57 (median 0.29) | Measured | `python tasks.py seeds` |
-| 184 tests, lint clean | Measured | `python tasks.py check` |
+| 197 tests, lint clean | Measured | `python tasks.py check` |
 | AgentCore Policy engine created and ACTIVE | Measured (live AWS) | `deploy/setup_policy.sh --apply` |
 | Container serves the Runtime contract | Measured | built and curled locally |
 | The corpus, its scripts and all identifiers | Synthetic / reconstructed | `corpus/templates.yaml` |

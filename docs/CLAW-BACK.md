@@ -18,7 +18,7 @@ assume either.
 | # | Requirement | Status | Owner |
 |---|---|---|---|
 | 1 | Text description of the project | ✅ drafted in `docs/submission-copy.md`, including an honest-status section | **HUMAN** to paste |
-| 2 | **Public** repo URL | ◻ repo is local-only, never pushed | **HUMAN** |
+| 2 | **Public** repo URL | ✅ pushed to `https://github.com/Unknown1502/porchlight` — **HUMAN** must confirm the GitHub visibility setting is Public, not just "not yet configured private" | **HUMAN** to confirm |
 | 3 | All source + setup instructions to run it | ✅ `README.md` quick start, `make install` verified against pinned deps | done |
 | 4 | MIT or Apache licence **visible in the repo About section** | ⚠ `LICENSE` (Apache-2.0) is at the repo root and declared in `pyproject.toml`; the *About section* is a GitHub UI field that only appears once the repo is pushed | **HUMAN** |
 | 5 | README | ✅ present, claims table, deployment status table | done |

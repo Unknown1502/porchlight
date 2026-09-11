@@ -105,7 +105,7 @@ class IntakeResult(BaseModel):
 # --------------------------------------------------------------------------
 class IndicatorFinding(BaseModel):
     indicator: str
-    kind: Literal["url", "domain", "phone", "crypto", "upi", "email", "other"]
+    kind: Literal["url", "domain", "phone", "crypto", "upi", "acct", "email", "other"]
     source: str
     verdict: Literal["malicious", "suspicious", "unknown", "benign"]
     detail: str = ""

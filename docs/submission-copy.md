@@ -156,10 +156,10 @@ customer-service line.
 ## Try it out
 
 ```bash
-git clone <repo>
+git clone https://github.com/Unknown1502/porchlight.git
 cd porchlight
 python tasks.py install
-python tasks.py check     # lint, 184 tests, corpus, eval, 5-seed gate
+python tasks.py check     # lint, 197 tests, corpus, eval, 5-seed gate
 python tasks.py run       # inbox on http://localhost:8080
 ```
 

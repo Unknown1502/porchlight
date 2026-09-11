@@ -1,5 +1,7 @@
 from porchlight.tools.indicators import extract_indicators, indicator_keys, merge_indicators
 from porchlight.tools.sanitize import scrub_pii
+from porchlight.offline import offline_intake, offline_corroboration
+from factories import make_report
 
 
 def test_extracts_the_indicators_that_matter_for_clustering():
@@ -84,6 +86,27 @@ def test_normalisation_does_not_mangle_ordinary_prose():
     out = normalise_for_matching(text)
     assert "on the phone to a man" in out
     assert "bank" in out
+
+
+def test_masked_bank_account_survives_corroboration():
+    """A masked account number is a real hard indicator (see indicator_keys) and
+    must not crash the corroboration node.
+
+    Regression: ``indicator_keys`` produces an ``acct:...`` key for masked bank
+    accounts, but ``IndicatorFinding.kind`` did not list ``"acct"`` as a valid
+    literal. Any report naming a bank account (very common in this corpus — a
+    scammer asking for a "safe account" transfer) raised a pydantic
+    ValidationError inside ``offline_corroboration``. The pipeline swallows node
+    failures so this never crashed a demo, but it silently dropped that report's
+    corroboration and campaign findings, i.e. one of the four hard-indicator
+    types the correlation module relies on failed on every report that used it.
+    """
+    report = make_report("acct-1", "Transfer to our safe account A/c xxxx4471 now.")
+    intake = offline_intake(report)
+    assert "****4471" in intake.indicators.bank_accounts_masked
+
+    result = offline_corroboration(report, intake)
+    assert any(f.kind == "acct" for f in result.findings)
 
 
 def test_the_stored_artefact_is_never_normalised():

@@ -55,6 +55,17 @@ jobs:
         # AA on their first pass; this catches the next ones.
         run: python scripts/check_design.py
 
+      - name: Regenerate corpus
+        # Fixed seed, so this is reproducible and eval/labels.json is derived
+        # from the same run that produced the reports it scores.
+        #
+        # Must run before Tests: corpus/seed/*.json is gitignored (regenerated,
+        # not committed), and tests/test_server.py's hero-scenario tests replay
+        # it via /replay. A fresh checkout has no corpus/seed/ at all until this
+        # step creates one — running Tests first only ever worked on a machine
+        # that already had a stale copy on disk from an earlier local run.
+        run: python corpus/generate.py --out corpus/seed --count 60 --campaigns 1
+
       - name: Tests
         run: pytest -q
 
@@ -63,11 +74,6 @@ jobs:
         # legible in the checks list. The claim it defends is the one the whole
         # submission rests on: no hostile report produces a side effect.
         run: pytest -q tests/injection
-
-      - name: Regenerate corpus
-        # Fixed seed, so this is reproducible and eval/labels.json is derived
-        # from the same run that produced the reports it scores.
-        run: python corpus/generate.py --out corpus/seed --count 60 --campaigns 1
 
       - name: Eval gate
         # Exits non-zero below attribution F1 0.80 or link precision 0.90, so a

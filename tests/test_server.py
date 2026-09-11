@@ -221,6 +221,72 @@ def test_approval_requires_an_identified_coordinator(client):
     assert client.post(f"/decisions/{decision['decision_id']}/approve").status_code == 401
 
 
+@pytest.fixture
+def coordinator_credentials(monkeypatch):
+    """Turn on the shared-secret identity boundary for one test.
+
+    Every ``Settings`` field reads its env var as a dataclass default, which
+    Python evaluates once — when the class body executes at first import — not
+    per instantiation. Correct for production (the env is set before the
+    process starts) but it means ``monkeypatch.setenv`` plus
+    ``settings.cache_clear()`` can never make a field see a new value at test
+    time: ``Settings()`` still gets the value baked in at import. So this
+    patches the ``settings`` name in ``porchlight.server`` directly, to a
+    ``Settings`` copy carrying the one field this test needs changed.
+    """
+    import dataclasses
+
+    from porchlight.config import settings as real_settings
+
+    patched = dataclasses.replace(
+        real_settings(),
+        coordinator_credentials="Priya Nair:priya-secret-tok,Sam Osei:sam-secret-tok",
+    )
+    monkeypatch.setattr("porchlight.server.settings", lambda: patched)
+
+
+def test_with_credentials_configured_the_header_alone_is_refused(client, coordinator_credentials):
+    """The exact gap being closed: a bare name, with no proof, must stop working."""
+    decision = _campaign_of_three(client)
+    result = client.post(f"/decisions/{decision['decision_id']}/approve", headers=WHO)
+    assert result.status_code == 401
+    assert "token" in result.json()["detail"].lower()
+
+
+def test_with_credentials_configured_the_wrong_secret_is_refused(client, coordinator_credentials):
+    decision = _campaign_of_three(client)
+    headers = {**WHO, "X-Coordinator-Token": "guessed-wrong"}
+    assert client.post(f"/decisions/{decision['decision_id']}/approve",
+                       headers=headers).status_code == 401
+
+
+def test_a_valid_secret_does_not_authorise_a_different_coordinators_name(client, coordinator_credentials):
+    """Knowing Sam's secret must not let a caller approve as Priya.
+
+    This is the property a bare-name header cannot have: the token is bound to
+    one registered identity, not treated as a general "you're allowed in" pass.
+    """
+    decision = _campaign_of_three(client)
+    headers = {"X-Coordinator": "Priya Nair", "X-Coordinator-Token": "sam-secret-tok"}
+    assert client.post(f"/decisions/{decision['decision_id']}/approve",
+                       headers=headers).status_code == 401
+
+
+def test_an_unregistered_coordinator_name_is_refused_even_with_a_token(client, coordinator_credentials):
+    decision = _campaign_of_three(client)
+    headers = {"X-Coordinator": "Someone Nobody Registered", "X-Coordinator-Token": "anything"}
+    assert client.post(f"/decisions/{decision['decision_id']}/approve",
+                       headers=headers).status_code == 401
+
+
+def test_the_matching_name_and_secret_approves(client, coordinator_credentials):
+    decision = _campaign_of_three(client)
+    headers = {"X-Coordinator": "Priya Nair", "X-Coordinator-Token": "priya-secret-tok"}
+    result = client.post(f"/decisions/{decision['decision_id']}/approve", headers=headers)
+    assert result.status_code == 200
+    assert result.json()["allowed"] is True
+
+
 def test_a_named_human_releases_the_draft_into_the_sandbox(client):
     decision = _campaign_of_three(client)
     result = client.post(f"/decisions/{decision['decision_id']}/approve",

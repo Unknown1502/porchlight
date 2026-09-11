@@ -20,6 +20,7 @@ only with a capability minted against a named human.
 """
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import re
@@ -75,19 +76,38 @@ app = FastAPI(
 # --------------------------------------------------------------------------
 # Dev authentication
 # --------------------------------------------------------------------------
-def coordinator(x_coordinator: str = Header(default="")) -> str:
+def coordinator(x_coordinator: str = Header(default=""),
+                x_coordinator_token: str = Header(default="")) -> str:
     """Identify the approving human.
 
-    **This is development authentication, not identity.** It records *which*
-    coordinator approved something; it does not verify *that* they are that
-    person. A real deployment puts an IdP in front of this and the approval
-    capability binds to the authenticated subject. Labelled everywhere it
-    appears, because an unlabelled fake login is worse than an obvious one.
+    Two modes, chosen by whether ``PORCHLIGHT_COORDINATOR_CREDENTIALS`` is set:
+
+    * **Configured** — ``X-Coordinator`` must name a registered coordinator and
+      ``X-Coordinator-Token`` must carry *that name's* secret, compared in
+      constant time. A caller who knows one coordinator's secret still cannot
+      approve as another by supplying only their name — the header alone is
+      never sufficient. This is the actual identity boundary: nothing upstream
+      of it (report content, a tool argument, a model output) can produce a
+      valid token, because none of them can read an environment variable this
+      process holds.
+    * **Unconfigured (the default)** — the header names the approver with no
+      proof, which is correct for a local demo run by one person and is
+      surfaced everywhere as exactly that: **development authentication, not
+      identity**. A real deployment sets the env var, or better, puts a real
+      IdP in front of this and binds the capability to the authenticated
+      subject — see README Limitations.
     """
     name = (x_coordinator or "").strip()
     if not name:
         raise HTTPException(status_code=401,
                             detail="X-Coordinator header required (dev auth: names the approver)")
+    secrets_by_name = settings().coordinator_secrets
+    if secrets_by_name:
+        expected = secrets_by_name.get(name, "")
+        if not expected or not hmac.compare_digest(x_coordinator_token, expected):
+            raise HTTPException(
+                status_code=401,
+                detail="invalid or missing X-Coordinator-Token for this coordinator")
     return name
 
 

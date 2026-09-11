@@ -43,6 +43,19 @@ class Settings:
     # open ingest endpoint is worse than an obvious one.
     ingest_token: str = os.getenv("PORCHLIGHT_INGEST_TOKEN", "")
 
+    # Per-coordinator shared secrets for the approval endpoints, "name:secret"
+    # pairs separated by commas — e.g. "Priya Nair:tok_abc,Sam Osei:tok_def".
+    #
+    # Empty (the default) means /approve trusts the X-Coordinator header's name
+    # on its own — real for a local demo, but it is *naming* an approver, not
+    # *authenticating* one, and that gap stays labelled everywhere it appears
+    # rather than being implied away. Setting this closes it: an approval then
+    # requires the secret registered to that exact name, so report content or an
+    # unauthenticated caller cannot mint a capability by asserting a name. It is
+    # still not an IdP — no session, no rotation, no revocation list — and does
+    # not pretend to be one; see README Limitations.
+    coordinator_credentials: str = os.getenv("PORCHLIGHT_COORDINATOR_CREDENTIALS", "")
+
     # Fixture-backed corroboration. Default ON: the demo must not depend on a
     # third-party feed being up, and it must never touch attacker infrastructure.
     # Set to 0 to consult the real allow-listed feeds.
@@ -65,6 +78,22 @@ class Settings:
     @property
     def use_agentcore_memory(self) -> bool:
         return bool(self.memory_id)
+
+    @property
+    def coordinator_secrets(self) -> dict[str, str]:
+        """Parsed ``name -> secret`` map from ``coordinator_credentials``.
+
+        Malformed entries (no ``:``, empty name, empty secret) are dropped
+        rather than raising, so a typo in one entry does not take the whole
+        endpoint down — it just means that one name has no working credential,
+        which /approve will report as plainly as any other auth failure.
+        """
+        pairs: dict[str, str] = {}
+        for entry in self.coordinator_credentials.split(","):
+            name, sep, secret = entry.strip().partition(":")
+            if sep and name.strip() and secret.strip():
+                pairs[name.strip()] = secret.strip()
+        return pairs
 
 
 @dataclass

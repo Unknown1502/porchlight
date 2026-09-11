@@ -108,8 +108,12 @@ def check() -> None:
     """Everything CI runs. The one command to trust before submitting."""
     lint()
     design()
-    test()
+    # corpus() must run before test(): tests/test_server.py's hero-scenario
+    # tests replay corpus/seed/reports.json, which is gitignored (regenerated,
+    # not committed). Testing first only ever passed on a machine that already
+    # had a stale copy on disk from an earlier run — a fresh clone has none.
     corpus()
+    test()
     evaluate()
     seeds()
     print("\nAll checks passed.")
