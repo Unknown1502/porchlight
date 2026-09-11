@@ -42,14 +42,15 @@ the Devpost rules tab before publishing.
 
 ## Known blockers
 
-| Blocker | Effect | Owner |
+| Blocker | Effect | Status |
 |---|---|---|
-| **AWS account has no valid payment instrument.** `bedrock-runtime converse` returns `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT`. | Live model mode cannot run. Offline mode is unaffected, so the demo, tests and eval all still work. | **HUMAN** — attach a payment method, or apply the hackathon's $50 credits (Resources tab). |
+| **No AWS account can complete an Anthropic Bedrock Marketplace subscription.** Original account: `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT`, unresolved even after adding a Visa card — Bedrock model billing runs through AWS Marketplace, a separate subscription check from general account billing, and Marketplace subscriptions require a credit card specifically; a debit card added to the account does not clear it. A second, brand-new AWS account hit a different wall: new-account verification (cleared after ~2h), then `ValidationException: Operation not allowed` (fixed by submitting Anthropic's first-time use-case form), then a final `AccessDeniedException: ... create a support case` requiring AWS Support to manually clear — not resolvable same-day. | Live model mode cannot run on either account. Offline mode is fully unaffected — the demo, tests, and eval all run without any AWS account. | **Closed, not pursued further.** No credit card available; investigated on 2026-09-11/12, confirmed a hard external constraint rather than a config error. Not required by the rules (AgentCore/live mode strengthens Technical Implementation, it isn't mandatory). |
 
-Worth knowing: an earlier attempt on the same account *did* reach Bedrock and the
-intake agent returned a valid structured result from
-`global.anthropic.claude-sonnet-4-6`, so the model id and the Strands wiring are
-right. The block appeared between attempts and is account-level, not code.
+Worth knowing: an earlier attempt on the original account *did* reach Bedrock and
+the intake agent returned a valid structured result from
+`global.anthropic.claude-sonnet-4-6`, before this blocker appeared — so the model
+id and the Strands live-mode wiring are confirmed correct in principle. That
+result stands regardless of the billing blocker above.
 
 ## Pre-flight (run immediately before submitting)
 
