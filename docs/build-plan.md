@@ -65,8 +65,9 @@ curl -s -X POST localhost:8080/reports -H 'content-type: application/json' -d @r
 # -> the dashboard reacts live, on its own: newly_escalated: true
 ```
 
-Before the injection beat, press **Denied only** in the policy panel. Do not
-scroll the audit log looking for the refusal on camera.
+Before the injection beat, open the **Activity** tab — its "Refused actions"
+section is always filtered to denials already, no toggle to press. Do not
+scroll the work log above it looking for the refusal on camera.
 
 ### 3. AgentCore deployment (half a day) — **decided against, for now**
 
