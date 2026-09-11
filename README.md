@@ -270,9 +270,12 @@ make run                 # dashboard on :8080
    earned near-miss campaign already on screen; the corpus's own ground truth
    now drives the hold-back, so every crew sits one report short and the
    screen does not open on any answer.
-2. **Paste one of the held-back reports.** The campaign fires: campaign count goes
-   0 → 1, the case comes back `newly_escalated: true`, and the panel states the
-   shared indicators that link it.
+2. **Send one of the held-back reports to `POST /reports`** — the same webhook
+   a partner system would use; the dashboard has no manual-entry composer,
+   deliberately, since reports arrive from partner systems, not from someone
+   typing into the coordinator's own screen. The campaign fires: campaign
+   count goes 0 → 1, the case comes back `newly_escalated: true`, and the
+   panel states the shared indicators that link it.
 3. **Open the case.** "How this report was assessed" lists every pipeline node
    — intake, corroboration, stage, correlation, response — and marks each one
    `agent` or `rule`. Correlation is always `rule`, in every mode: it is a
@@ -280,9 +283,9 @@ make run                 # dashboard on :8080
    model is asked to decide. The other four are real Strands agents in live
    mode and rule-based stand-ins offline, and the panel says which, honestly,
    for the run you are looking at.
-4. **Paste a hostile report.** It is processed as a real report — the scam
-   underneath is not lost — and the policy trail records what it asked for and
-   that it was refused, tagged to its report id.
+4. **Send a hostile report the same way.** It is processed as a real report —
+   the scam underneath is not lost — and the policy trail records what it
+   asked for and that it was refused, tagged to its report id.
 
 `docs/demo-script.md` has the five minutes beat by beat. Steps 1, 2 and 4 are
 asserted end to end by `tests/test_server.py::test_the_hero_scenario`; step 3

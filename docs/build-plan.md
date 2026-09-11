@@ -48,14 +48,21 @@ moot either way; confirm which is true before spending time on it.
 
 Run it: `make run`, then <http://localhost:8080>.
 
-Demo prep is now two clicks instead of a second terminal. `/replay` holds back
-every crew in the corpus one report short of threshold automatically now
-(`hold_campaign_tail` defaults to true, reading the corpus's own ground truth)
-— no manual `exclude` list needed any more:
+Demo prep is now one click (**Load prior reports**) instead of a second
+terminal. `/replay` holds back every crew in the corpus one report short of
+threshold automatically now (`hold_campaign_tail` defaults to true, reading
+the corpus's own ground truth) — no manual `exclude` list needed any more.
+
+There is deliberately no manual-entry composer in the dashboard — reports
+arrive from partner systems via `POST /reports`, never from someone typing
+into the coordinator's own screen, and the demo should show that, not fake a
+text box that was never built:
 
 ```bash
 curl -s -X POST localhost:8080/replay -H 'content-type: application/json' -d '{"directory":"corpus/seed"}'
-# -> 54 queued, 6 held back, 0 campaigns. Paste rpt-0003 on camera -> newly_escalated: true
+# -> 54 queued, 6 held back, 0 campaigns.
+curl -s -X POST localhost:8080/reports -H 'content-type: application/json' -d @rpt-0003.json
+# -> the dashboard reacts live, on its own: newly_escalated: true
 ```
 
 Before the injection beat, press **Denied only** in the policy panel. Do not
