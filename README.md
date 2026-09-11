@@ -264,12 +264,14 @@ regression breaks CI rather than the demo.
 make run                 # dashboard on :8080
 ```
 
-1. **Load prior reports.** 56 of the 60 land in the community store. One campaign
-   is visible. The planted campaign is *not* — the replay endpoint holds it one
-   report short of threshold on purpose, so the screen does not open on the
-   answer.
+1. **Load prior reports.** 54 of the 60 land in the community store; 6 are held
+   back. **Zero campaigns are visible** — not just the planted one. An earlier
+   version held back only the headline crew, which left a second, honestly-
+   earned near-miss campaign already on screen; the corpus's own ground truth
+   now drives the hold-back, so every crew sits one report short and the
+   screen does not open on any answer.
 2. **Paste one of the held-back reports.** The campaign fires: campaign count goes
-   1 → 2, the case comes back `newly_escalated: true`, and the panel states the
+   0 → 1, the case comes back `newly_escalated: true`, and the panel states the
    shared indicators that link it.
 3. **Open the case.** "How this report was assessed" lists every pipeline node
    — intake, corroboration, stage, correlation, response — and marks each one

@@ -59,24 +59,29 @@ the security property depend on model behaviour. It asserts that no draft came
 back sendable and that every attempt to act on attacker-supplied infrastructure
 produced a policy denial naming the rule.
 
-Current: **92 tests passing**, 144 policy denials recorded across a 60-report run.
+Current: **200 tests passing**, 183 policy denials recorded across the default
+60-report run (`python tasks.py eval`, reproducible — see `eval/out/results.json`
+after running it).
 
 Injection *flagging* rates, stated separately because averaging them would
 flatter the system: **1.00 on in-vocabulary payloads** (a regression check — those
-payloads and the signature list were written against each other) and **0.43 on a
-held-out evasion set** (paraphrase, homoglyph, letter-spacing, base64,
-non-English). The second number is the real one.
+payloads and the signature list were written against each other) and, on the
+default seed, **0.57 on a held-out evasion set** (paraphrase, homoglyph,
+letter-spacing, base64, non-English) — catches 4 of 7, misses 3. Across the
+5-seed gate (`python tasks.py seeds`) that ranges **0.14–0.57, median 0.29**.
+The held-out number, not the in-vocabulary one, is the real one.
 
 ## Known limits — stated, not hidden
 
-- **`detect_injection` is signature-based** and misses 4 of 7 held-out evasions —
-  measured, not estimated. It is a finding-generator, not a control. The control
-  is P001–P005. This is the right split: a bypassed detector costs a flag on a
-  screen, a bypassed policy would cost a broadcast. Normalisation (NFKC,
-  zero-width stripping, homoglyph folding, letter-spacing collapse) was added
-  after seeing the held-out result and moved it from 0/7 to 3/7; the remaining
-  misses are encoding, paraphrase and another language, which a signature list
-  cannot reach.
+- **`detect_injection` is signature-based** and misses 3 of 7 held-out evasions
+  on the default seed (as low as 6 of 7 missed on the worst of the 5 canonical
+  seeds) — measured, not estimated. It is a finding-generator, not a control.
+  The control is P001–P005. This is the right split: a bypassed detector costs
+  a flag on a screen, a bypassed policy would cost a broadcast. Normalisation
+  (NFKC, zero-width stripping, homoglyph folding, letter-spacing collapse) was
+  added after seeing the held-out result and moved it from 0/7 to 4/7 on the
+  default seed; the remaining misses are encoding, paraphrase and another
+  language, which a signature list cannot reach.
 
 - **The policy layer is in-process, not at a gateway.** It is outside the model
   but inside the same trust boundary as the agent, so a compromise of the process

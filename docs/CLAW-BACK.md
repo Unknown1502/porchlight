@@ -26,7 +26,7 @@ assume either.
 | 7 | Demo video ≤ 5 min on YouTube/Vimeo, covering (1) problem (2) who it's for (3) why it matters | ◻ not recorded | **HUMAN** (script: `docs/demo-script.md`) |
 | 8 | AWS Builder ID | ◻ unknown whether one exists | **HUMAN** |
 | 9 | Live demo link (optional, strengthens Technical Implementation) | ◻ nothing deployed | **HUMAN** approval + agent |
-| 10 | Pre-existing work disclosure | ✅ `SUBMISSION-PREEXISTING.md` — **§4 attestations still unticked** | **HUMAN** to confirm |
+| 10 | Pre-existing work disclosure | ✅ `SUBMISSION-PREEXISTING.md` — the submission-period-opening box is now ticked and cited against the official rules page (opened 2026-08-10); **the other two boxes require the author personally**, since they ask whether any material was carried in from elsewhere — nothing in the repo or a public source can answer that | **HUMAN** to confirm the remaining 2 boxes |
 | 11 | All materials in English | ✅ | done |
 | 12 | Judges can test free of charge through the judging period | ⚠ offline mode needs no AWS account and no key; verify this stays true for whatever is deployed | agent |
 

@@ -13,22 +13,33 @@ presents an assumption as a verified fact is worse than no disclosure.
 
 **Version control does not cover the initial development.** `git init` was run on
 2026-09-10, part-way through the project, during a code-audit session. The
-repository therefore contains two commits, both dated 2026-09-10, and neither of
-them documents when the code inside them was written.
+repository now contains 16 commits, spanning 2026-09-10 to 2026-09-11 by commit
+date, none of which documents when the code inside the first commit was written
+— that commit is a squashed snapshot of everything that existed at `git init`
+time, not a step-by-step history of it.
 
 ```
-9745eb9  2026-09-10  Regenerate corpus labels from the final seeded run
-8c70cef  2026-09-10  Audit pass: verified baseline, closed real gaps, ...
+8c70cef  2026-09-10  Audit pass: verified baseline, closed real gaps, ...   (first)
+  ...    2026-09-10  Phases 0-8: domain model, agents, policy, eval, deploy
+  ...    2026-09-10  Redesign: the neighbourhood desk
+e903409  2026-09-11  Confirm the license fix took effect on GitHub          (last)
 ```
+
+The 2026-09-11 commits are a hardening pass made during a second code-audit
+session: fixing a CI ordering bug, closing an approval-endpoint identity gap,
+persisting the pipeline trace for observability, and correcting a LICENSE file
+that GitHub's detector was not recognising. No new capability or feature was
+added that was not already described by the 2026-09-10 commits; this pass
+corrected and made verifiable claims the repository already made about itself.
 
 **Filesystem timestamps are the only in-repo provenance signal**, and they are
 weak evidence — mtimes are trivially altered and are not a chain of custody. For
-what it is worth, they are internally consistent and span two days:
+what it is worth, they are internally consistent and span three days:
 
-| | Timestamp |
+| | Timestamp (UTC) |
 |---|---|
-| Earliest source file | 2026-09-09 17:50 |
-| Latest source file | 2026-09-10 11:33 |
+| Earliest source file | 2026-09-09 12:20 |
+| Latest source file | 2026-09-11 15:27 |
 
 **No prior version control, vendored code, or third-party source tree is present.**
 `.git` is the only VCS directory and was created during this project. There is no
@@ -65,17 +76,24 @@ No source from any of these is copied into this repository.
 
 ## 4. What only the author can confirm
 
-The following cannot be established from the repository and are recorded here as
-**author attestations**, to be confirmed by the author before submission. They
-are deliberately not asserted as verified facts.
+Two of these cannot be established from the repository at all and remain
+**author attestations**, to be confirmed by the author before submission. The
+third was checked against the official rules page directly.
 
-- [ ] **The submission period opened on or before 2026-09-09**, so that work
-      beginning that day falls inside it. The public Devpost overview page states
-      the deadline (2026-09-14, 5:00pm PDT) but does not publish an opening date;
-      confirm against the official rules page.
+- [x] **The submission period opened on or before 2026-09-09.** Confirmed
+      against `agentsforhumans.devpost.com/rules`: the period opened **Monday,
+      2026-08-10, 9:00 AM PT**, well before this repository's earliest source
+      file (2026-09-09). This is no longer an open question — it is checked
+      against the published rules, not merely asserted.
 - [ ] **No code, design, or written material in this repository was carried in
-      from an earlier project** of the author's or anyone else's.
-- [ ] **No portion was developed before the submission period opened.**
+      from an earlier project** of the author's or anyone else's. Cannot be
+      established from the repository or from public sources; only the author
+      can confirm this.
+- [ ] **No portion was developed before the submission period opened**
+      (2026-08-10, per the rules page above). The repository's own timestamps
+      are consistent with this — earliest file 2026-09-09, a month after the
+      period opened — but timestamps are not a chain of custody; only the
+      author can attest to when the work actually began.
 
 If any box above cannot be ticked truthfully, the affected work must be described
 here specifically — what it is, where it came from, and when it was created —
@@ -90,4 +108,4 @@ of it was written for this project.
 
 ---
 
-*Last updated: 2026-09-10. Update this file if any answer in §4 changes.*
+*Last updated: 2026-09-11. Update this file if any answer in §4 changes.*
