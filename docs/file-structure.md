@@ -4,20 +4,31 @@ Status column: **✅ built and passing tests** · **◻ specified, not yet writt
 
 ```
 porchlight/
-├── README.md                              ✅  build spec, quickstart, results
-├── LICENSE                                ✅  Apache-2.0 (hard submission requirement)
+├── README.md                              ✅  quickstart, results, judge-facing
+├── LICENSE                                ✅  Apache-2.0, full text (hard requirement)
+├── SUBMISSION-PREEXISTING.md              ✅  pre-existing-work disclosure
 ├── pyproject.toml / requirements*.txt     ✅
-├── Makefile                               ✅  install · corpus · demo · eval · test · injection
+├── tasks.py                               ✅  the canonical cross-platform runner —
+│                                              `make` targets just delegate to this,
+│                                              because stock Windows has no `make`
+├── Makefile                               ✅  thin wrapper over tasks.py
 ├── .env.example                           ✅
 │
 ├── docs/
-│   ├── architecture.md                    ✅  node graph, mermaid diagram, data flow
+│   ├── architecture.md / architecture.svg ✅  node graph + the diagram itself
 │   ├── file-structure.md                  ✅  this file
 │   ├── manual-baseline.md                 ✅  why there is no time-saving claim
 │   ├── prompts.md                         ✅  every system prompt, annotated
 │   ├── threat-model.md                    ✅  adversarial input model
 │   ├── demo-script.md                     ✅  the five minutes, beat by beat
-│   └── build-plan.md                      ✅  what is left, in order
+│   ├── submission-copy.md                 ✅  Devpost text, honest-status section
+│   ├── CLAW-BACK.md                       ✅  submission checklist, human-only items
+│   ├── build-plan.md                      ✅  what is left, in order
+│   └── blog-drafts/                       ✅  3 builder.aws posts, drafted not published
+│
+├── scripts/
+│   ├── check_design.py                    ✅  colour contrast + a11y structure, in CI
+│   └── gen_prompt_docs.py                 ✅  regenerates docs/prompts.md from source
 │
 ├── packs/                                 ✅  jurisdiction as config, not a code fork
 │   ├── in.yaml                                NCRP / 1930, partners, script library
@@ -31,11 +42,16 @@ porchlight/
 ├── src/porchlight/
 │   ├── config.py                          ✅  Settings + jurisdiction pack loader
 │   ├── models.py                          ✅  every structured-output schema
+│   ├── domain.py                          ✅  Case/Decision/Approval/AuditEvent models
+│   ├── db.py                              ✅  SQLite persistence (WAL, one writer)
 │   ├── policy.py                          ✅  in-process Cedar-equivalent shim
+│   ├── approvals.py                       ✅  capability minting, redemption, delivery
 │   ├── memory.py                          ✅  AgentCore Memory, community-scoped
 │   ├── correlation.py                     ✅  deterministic union-find clustering
 │   ├── pipeline.py                        ✅  orchestrator, both modes
 │   ├── offline.py                         ✅  deterministic nodes for CI/dev
+│   ├── ingest.py                          ✅  webhook accept + background worker
+│   ├── trace.py                           ✅  per-step observability, persisted via db.py
 │   ├── cli.py                             ✅  replay · one · reset · setup-memory
 │   ├── prompts/
 │   │   ├── _shared.py                     ✅  adversarial-input + privacy blocks
@@ -62,13 +78,17 @@ porchlight/
 │
 ├── eval/
 │   ├── run_eval.py                        ✅  P/R/F1 + gates, exits non-zero on fail
+│   ├── run_seeds.py                       ✅  same gates across 5 corpus seeds
 │   └── labels.json                        ✅  ground truth (generated)
 │
-├── tests/                                 ✅  76 passing
+├── tests/                                 ✅  200 passing (47 in the injection suite)
 │   ├── test_indicators.py                     extraction + PII scrubbing
 │   ├── test_server.py                         endpoints, queue order, approval gate
 │   ├── test_correlation.py                    the false-campaign guards
 │   ├── test_policy_parity.py                  Cedar ↔ shim must not drift
+│   ├── test_approval_abuse.py                 replay, substitution, expiry, forgery
+│   ├── test_domain_store.py / test_ingest.py   persistence, dedup, background worker
+│   ├── test_trace_and_tools.py                per-step trace, fixture-backed tools
 │   └── injection/
 │       ├── cases.yaml                         20 payloads, 6 attack categories
 │       └── test_injection.py                  asserts no side effect, not "model refused"
@@ -117,8 +137,14 @@ CLI rather than hard-coding them, and stops with instructions if they are
 absent — the service is new, and a plausible-looking wrong command against
 someone's account is worse than no command.
 
-**`ci.yml`** — `ruff check`, `pytest`, the red-team suite called out separately,
-then a corpus regeneration and `eval/run_eval.py`. The eval exits non-zero below
-attribution F1 0.80 or injection recall 0.90, so a clustering regression breaks
-the build rather than the demo. The ruff rule set is pinned in `pyproject.toml`
-so a ruff release cannot fail the build on its own.
+**`ci.yml`** — `ruff check`, design/accessibility checks, then corpus
+regeneration (must run *before* `pytest`: the hero-scenario tests replay
+`corpus/seed/*.json`, which is gitignored — a fresh checkout has none until
+this step creates one), then `pytest`, the red-team suite called out
+separately, `eval/run_eval.py`, and a 5-seed gate. The eval exits non-zero
+below attribution F1 0.80 or link precision 0.90, so a clustering regression
+breaks the build rather than the demo. There is deliberately **no** gate on
+injection recall — the signature list is not the security control, and a
+floor on it would invite tuning the corpus instead of fixing the system. The
+ruff rule set is pinned in `pyproject.toml` so a ruff release cannot fail the
+build on its own.
