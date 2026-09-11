@@ -168,6 +168,27 @@ def test_case_detail_round_trips_and_unknown_ids_404(client):
     assert client.get("/case/nope").status_code == 404
 
 
+def test_case_detail_carries_the_pipeline_trace_per_report(client):
+    """The evidence a judge (or a coordinator) needs to see the agent workflow:
+    which steps ran, which were deterministic versus agent-judged, what each
+    used. Regression for the trace that used to die with the request."""
+    submit(client, "r1")
+    case_id = client.get("/cases").json()["cases"][0]["case_id"]
+    detail = client.get(f"/case/{case_id}").json()
+    assert "r1" in detail["traces"]
+    steps = [s["step"] for s in detail["traces"]["r1"]["steps"]]
+    assert steps == ["intake", "corroboration", "stage", "correlation", "response"]
+
+
+def test_report_trace_endpoint_round_trips_and_unknown_ids_404(client):
+    submit(client, "r1")
+    trace = client.get("/report/r1/trace").json()
+    assert trace["report_id"] == "r1"
+    assert trace["mode"] == "offline-deterministic"
+    assert trace["trace"]["steps"]
+    assert client.get("/report/nope/trace").status_code == 404
+
+
 def test_reset_clears_everything(client):
     submit(client, "r1")
     assert client.post("/reset").json()["ok"] is True

@@ -69,6 +69,19 @@ def process_report(report: Report, *, offline: bool | None = None,
 
     case.policy_events = recent_audit(40)
     case.trace = rec.trace
+
+    # Persist so the trace outlives this request. Without this, the one
+    # record of which steps a real Strands agent produced versus a
+    # deterministic stand-in died with the in-memory CaseFile the moment this
+    # function returned — visible in a terminal replay, invisible afterwards
+    # to anyone reading the dashboard or auditing a decision later.
+    from . import db  # noqa: PLC0415 — deferred to avoid an import cycle
+
+    try:
+        db.put_trace(report.report_id, rec.trace, rec.mode)
+    except Exception:  # noqa: BLE001 — no store configured; the in-memory trace stands
+        log.debug("no durable store for the trace", exc_info=True)
+
     log.info("processed %s in %.2fs", report.report_id, time.perf_counter() - t0)
     return case
 

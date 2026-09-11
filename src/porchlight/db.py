@@ -47,6 +47,7 @@ from .domain import (
     ReportState,
     utcnow,
 )
+from .trace import Trace
 
 SCHEMA_VERSION = 1
 
@@ -201,6 +202,20 @@ CREATE TABLE IF NOT EXISTS broadcast_log (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
     at       TEXT NOT NULL,
     audience TEXT NOT NULL DEFAULT ''
+);
+
+-- One row per report per processing run: the pipeline's own account of what it
+-- did, node by node. Built by TraceRecorder (see trace.py) and, until now, only
+-- ever attached to the in-memory CaseFile a single request returned — nothing
+-- read it back afterwards, so a coordinator (or a judge) had no way to see which
+-- steps a real Strands agent produced versus a deterministic stand-in. This
+-- table is what makes that distinction inspectable after the fact rather than
+-- only visible in the terminal at the moment a report was processed.
+CREATE TABLE IF NOT EXISTS traces (
+    report_id   TEXT PRIMARY KEY,
+    mode        TEXT NOT NULL DEFAULT 'offline-deterministic',
+    trace_json  TEXT NOT NULL,
+    created_at  TEXT NOT NULL
 );
 """
 
@@ -772,6 +787,37 @@ def broadcasts_since(hours: int = 24) -> int:
     row = connect().execute("SELECT COUNT(*) c FROM broadcast_log WHERE at >= ?",
                             (cutoff,)).fetchone()
     return int(row["c"])
+
+
+# --------------------------------------------------------------------------
+# Pipeline traces — the observable record of what each node did
+# --------------------------------------------------------------------------
+def put_trace(report_id: str, trace: Trace, mode: str) -> None:
+    """Persist one report's pipeline trace. Overwrites on reprocessing.
+
+    ``INSERT ... ON CONFLICT`` rather than ``INSERT OR IGNORE``: a report that
+    is corrected and reprocessed should show its latest run, not its first one
+    — a trace panel that silently kept a stale run would be worse than no
+    panel at all.
+    """
+    with tx() as conn:
+        conn.execute(
+            """INSERT INTO traces (report_id, mode, trace_json, created_at)
+               VALUES (?,?,?,?)
+               ON CONFLICT(report_id) DO UPDATE SET
+                   mode=excluded.mode, trace_json=excluded.trace_json,
+                   created_at=excluded.created_at""",
+            (report_id, mode, trace.model_dump_json(), utcnow().isoformat()))
+
+
+def get_trace(report_id: str) -> Optional[dict[str, Any]]:
+    row = connect().execute(
+        "SELECT * FROM traces WHERE report_id=?", (report_id,)).fetchone()
+    if row is None:
+        return None
+    out = dict(row)
+    out["trace"] = json.loads(out.pop("trace_json"))
+    return out
 
 
 # --------------------------------------------------------------------------

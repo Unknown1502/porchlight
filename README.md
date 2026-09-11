@@ -12,7 +12,7 @@ Built with the [Strands Agents SDK](https://strandsagents.com) for the AWS
 *Agents for Humans* hackathon, **Good Neighbor Agents** track.
 
 ```
-Attribution F1 1.00 across 5 seeds · 0 false links · 197 tests · Apache-2.0
+Attribution F1 1.00 across 5 seeds · 0 false links · 200 tests · Apache-2.0
 ```
 
 Every number in this README is either measured by a command you can run, or
@@ -271,13 +271,22 @@ make run                 # dashboard on :8080
 2. **Paste one of the held-back reports.** The campaign fires: campaign count goes
    1 → 2, the case comes back `newly_escalated: true`, and the panel states the
    shared indicators that link it.
-3. **Paste a hostile report.** It is processed as a real report — the scam
+3. **Open the case.** "How this report was assessed" lists every pipeline node
+   — intake, corroboration, stage, correlation, response — and marks each one
+   `agent` or `rule`. Correlation is always `rule`, in every mode: it is a
+   deterministic module the agents judge the output of, never something the
+   model is asked to decide. The other four are real Strands agents in live
+   mode and rule-based stand-ins offline, and the panel says which, honestly,
+   for the run you are looking at.
+4. **Paste a hostile report.** It is processed as a real report — the scam
    underneath is not lost — and the policy trail records what it asked for and
    that it was refused, tagged to its report id.
 
-`docs/demo-script.md` has the five minutes beat by beat. Steps 1–3 are asserted
-by `tests/test_server.py`, so the demo is a regression test rather than a
-rehearsal.
+`docs/demo-script.md` has the five minutes beat by beat. Steps 1, 2 and 4 are
+asserted end to end by `tests/test_server.py::test_the_hero_scenario`; step 3
+is checked separately by `tests/test_server.py::test_case_detail_carries_the_pipeline_trace_per_report`
+and `tests/test_trace_and_tools.py`. The demo is a regression test rather than
+a rehearsal, not a slideshow rehearsing something that might drift.
 
 ## Setup
 
@@ -378,7 +387,7 @@ In the order that would matter most:
 | Hundreds of US counties run an elder-fraud network | Externally verified | CFPB[^cfpb] |
 | Attribution F1 1.00, link precision 1.00, 0 false links | Measured | `python tasks.py seeds`, 5 seeds |
 | Held-out injection recall 0.14-0.57 (median 0.29) | Measured | `python tasks.py seeds` |
-| 197 tests, lint clean | Measured | `python tasks.py check` |
+| 200 tests, lint clean | Measured | `python tasks.py check` |
 | AgentCore Policy engine created and ACTIVE | Measured (live AWS) | `deploy/setup_policy.sh --apply` |
 | Container serves the Runtime contract | Measured | built and curled locally |
 | The corpus, its scripts and all identifiers | Synthetic / reconstructed | `corpus/templates.yaml` |

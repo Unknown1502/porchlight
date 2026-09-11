@@ -90,6 +90,26 @@ def test_a_processed_report_records_every_pipeline_step():
     assert case.trace.total_ms >= 0
 
 
+def test_the_trace_survives_the_request_it_was_built_for():
+    """Regression: the trace used to die with the in-memory CaseFile.
+
+    ``process_report`` built a full, honest account of what each node did —
+    which step was a real Strands agent versus a deterministic stand-in, what
+    evidence it used, which tools ran — and then nothing kept it. A coordinator
+    (or a judge reading the dashboard afterwards) had no way to see it once the
+    request that produced it was over. This asserts it is retrievable by
+    report id after the fact, from the same store the HTTP layer reads.
+    """
+    from porchlight import db
+
+    case = process_report(_report("r-persisted", RICH))
+    stored = db.get_trace("r-persisted")
+    assert stored is not None
+    assert stored["mode"] == "offline-deterministic"
+    assert [s["step"] for s in stored["trace"]["steps"]] == [s.step for s in case.trace.steps]
+    assert stored["trace"]["steps"][0]["outcome"] == case.trace.steps[0].outcome
+
+
 def test_the_trace_names_which_tools_ran_and_what_they_returned():
     case = process_report(_report("r-tools", RICH))
     corroboration = case.trace.step("corroboration")

@@ -1032,11 +1032,70 @@ async function viewCase(caseId) {
         </div>`).join("")}
     </div>
 
+    ${(c.reports || []).map((r) => traceSection(r, (c.traces || {})[r.report_id])).join("")}
+
     ${c.campaign ? `<div class="section">
       <div class="section-head"><h2>Connected reports</h2></div>
       <p>This report shares details with ${plural(c.campaign.report_count - 1, "other report", "other reports")}.
          <button class="link-btn" data-route="campaigns">See the group</button></p>
     </div>` : ""}`;
+}
+
+/* How one report was actually processed: which steps were judged by a real
+   Strands agent versus computed by a deterministic rule, what each step used
+   as evidence, and which tools it called. Built from TraceRecorder (see
+   trace.py) — narrow by design, a fact about an action taken rather than the
+   model's reasoning, so this never renders anything resembling chain-of-thought. */
+const AGENTIC_STEPS = new Set(["intake", "stage", "campaign", "response"]);
+const STEP_LABEL = {
+  intake: "Intake — read the report, extract the record",
+  corroboration: "Corroboration — check indicators against tools and prior reports",
+  stage: "Stage assessment — Strands Swarm: script, money-rail and isolation assessors",
+  correlation: "Correlation — deterministic clustering (never model-judged)",
+  campaign: "Campaign judgment — agent assesses the cluster correlation built",
+  response: "Response — draft what this case needs",
+};
+
+function traceSection(report, trace) {
+  if (!trace || !trace.steps || !trace.steps.length) return "";
+  // Every step in one run carries the same mode (set once per TraceRecorder),
+  // so the first step's is the run's.
+  const runMode = trace.steps[0].mode || "offline-deterministic";
+  return `<div class="section">
+    <div class="section-head"><h2>How this report was assessed</h2>
+      <span class="aside">${runMode === "bedrock"
+        ? "live Strands agents" : "offline mode — deterministic stand-ins"}</span></div>
+    <p class="page-summary" style="margin-bottom:var(--s4)">
+      Correlation is always a deterministic computation, never something a model
+      decides — that is deliberate, see the note on that step below. ${runMode === "bedrock"
+        ? "The other steps below are real Strands agents judging the evidence."
+        : "The other steps below are rule-based stand-ins for those same agents — " +
+          "this run was offline, so no model was called."}
+    </p>
+    <table>
+      <caption class="sr-only">Pipeline steps for ${esc(report.report_id)}</caption>
+      <thead><tr><th scope="col">Step</th><th scope="col">Basis</th>
+        <th scope="col">What it used</th><th scope="col">Outcome</th></tr></thead>
+      <tbody>${trace.steps.map((s) => `<tr>
+        <td>${esc(STEP_LABEL[s.step] || s.step)}</td>
+        <td><span class="status">
+          ${s.step === "correlation" ? "rule (always)" : (runMode === "bedrock" ? "agent" : "rule (offline)")}</span></td>
+        <td>${(s.tools_called || []).length
+          ? esc(s.tools_called.map((t) => `${t.tool}(${t.argument})→${t.verdict || "n/a"}`).join("; "))
+          : (s.evidence_used || []).length ? esc(s.evidence_used.join(", ")) : "—"}</td>
+        <td>${esc(s.outcome || "—")}</td></tr>`).join("")}
+      </tbody>
+    </table>
+    ${trace.steps.some((s) => s.missing_evidence && s.missing_evidence.length) ? `
+      <details class="fold">
+        <summary>What was missing at each step</summary>
+        <div class="fold-body"><ul class="evidence-inline">
+          ${trace.steps.filter((s) => s.missing_evidence && s.missing_evidence.length).map((s) =>
+            `<li><span class="k">${esc(s.step)}</span><span class="v">${esc(s.missing_evidence.join(", "))}</span></li>`
+          ).join("")}
+        </ul></div>
+      </details>` : ""}
+  </div>`;
 }
 
 /* --- 4. Campaigns -------------------------------------------------------- */

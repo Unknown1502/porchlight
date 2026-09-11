@@ -476,7 +476,21 @@ def get_case(case_id: str) -> dict[str, Any]:
         "reports": [r for r in reports if r],
         "campaign": (_campaign_view(db.get_campaign(case.campaign_id))
                      if case.campaign_id and db.get_campaign(case.campaign_id) else None),
+        # What each report's pipeline run actually did, node by node — which
+        # steps were a real Strands agent versus a deterministic stand-in,
+        # which tools ran, what evidence they used. Keyed by report_id so a
+        # multi-report case shows one panel per report.
+        "traces": {rid: t["trace"] for rid in case.report_ids
+                   if (t := db.get_trace(rid)) is not None},
     }
+
+
+@app.get("/report/{report_id}/trace")
+def get_report_trace(report_id: str) -> dict[str, Any]:
+    trace = db.get_trace(report_id)
+    if trace is None:
+        raise HTTPException(status_code=404, detail=f"no trace recorded for {report_id}")
+    return trace
 
 
 @app.get("/campaigns")

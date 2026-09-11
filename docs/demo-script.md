@@ -1,14 +1,22 @@
 # The demo, beat by beat
 
 Two cuts: **3:00** if you want margin, **5:00** to use the full allowance. Both
-land the same two moments.
+land the same three moments — one causal chain, not three separate features:
 
-The whole thing rests on those two:
+> Reports arrive unattended → they turn out to be one campaign → the agent
+> swarm judges that bounded evidence → the coordinator gets one decision → an
+> attacker tries to forge authorization → the system refuses, on the record.
 
-- **Discovery** — reports that arrived unattended turn out to be one crew. The
-  judge must understand this **before 2:00**.
+The report was never the threat on its own. The campaign was — and a report
+that also tries to talk its way into sending something is not an exception to
+that story, it is the same story tested under attack.
+
+- **Discovery** — reports that arrived unattended turn out to be one crew.
+  **Before 1:40.**
+- **Judgment** — the swarm assesses the bounded evidence a deterministic
+  module built, not evidence it invented itself. **Before 2:40.**
 - **Trust** — a hostile report tries to use the system and is refused, on the
-  record. **Before 4:00** in the long cut.
+  record. **Before 4:30** in the long cut.
 
 Everything else is scaffolding.
 
@@ -21,17 +29,23 @@ python tasks.py check     # if this is green, the demo is green
 python tasks.py run       # inbox on http://localhost:8080
 ```
 
-`tests/test_server.py::test_the_hero_scenario` walks exactly the sequence below.
-You are not rehearsing something that might drift; you are demonstrating a
-regression test.
+`tests/test_server.py::test_the_hero_scenario` walks the campaign-discovery and
+approval beats below end to end — you are not rehearsing something that might
+drift; you are demonstrating a regression test. The trace panel (beat 4,
+"Agentic judgment") is a dashboard view, checked separately by
+`tests/test_server.py::test_case_detail_carries_the_pipeline_trace_per_report`
+and `tests/test_trace_and_tools.py`, not by the hero-scenario test itself.
 
 On camera, in the browser only:
 
 1. **Reset demo**
 2. **Load prior reports** — note the hint line; it names the reports held back
 3. Paste one of those reports into **Add a report**
-4. Approve
-5. Paste the hostile report, open **Policy decisions**
+4. Open the case, scroll to **How this report was assessed** — the per-step
+   trace: which node was a rule and which was a real Strands agent, what each
+   used, what it concluded
+5. Approve
+6. Paste the hostile report, open **Policy decisions**
 
 Do **not** warm the store from the terminal first. The old instructions here
 told you to, and it loaded every campaign member, so the campaign was already on
@@ -43,26 +57,31 @@ screen and Moment 1 had nothing to show.
 
 | Time | Beat | On screen | The line |
 |---|---|---|---|
-| 0:00–0:25 | **The problem** | The inbox, empty | "This is one volunteer's Monday. Reports come in one at a time. Each one gets handled and filed. Nobody has the hours to notice that four of them were the same crew." |
-| 0:25–0:50 | **Who it's for** | Say who is in the network | Adult protective services, police, a partner bank, an area agency on aging — coordinated by one part-time volunteer. The CFPB says hundreds of US counties run one. Name the repetitive work being lifted. |
-| 0:50–1:20 | **It already ran** | Click **Load prior reports** | "These came in over the weekend. Nobody was watching — the agent worked them anyway." Read the line at the top: *worked through 47 reports, folded in the repeats.* Point out: no campaign, nothing waiting. |
-| 1:20–2:00 | **Discovery** | Paste a held-back report, **Add report** | The campaign appears and one decision arrives. *"Three residents. Three separate phone calls. Same callback number, same payment handle, same story."* Then the sentence the submission rests on: **no one person could have seen this.** |
-| 2:00–2:50 | **What it prepared** | The decision card | It states what changed, lists the linking evidence in plain words, and has the warning already written for someone reading it aloud. Say why the agent cannot send it: "the agent drafts, a human sends — and that is a rule outside the model, not a line in a prompt." |
-| 2:50–3:20 | **The human decision** | Edit one sentence, then **Approve and send** | Point at the sandbox badge. "Approving is bound to this exact wording. Change a word and the approval no longer applies." Show the sandbox outbox. |
-| 3:20–4:15 | **The wall** | Paste the hostile report; open **Policy decisions**, **Show denied only** | Two denials, tagged to that report, marked *from report text*. "This report asked us to fetch its link and to broadcast its text to residents. Both refused, and the refusal has the report's name on it." Then: "it is still triaged as a real scam — the fraud underneath did not get lost because the text was also hostile." |
-| 4:15–4:40 | **How** | `docs/architecture.svg` | Trust boundary first. Clustering is deterministic, so injected prose cannot argue its way into a campaign. Ten seconds a layer, no more. |
-| 4:40–5:00 | **Measured, and honest** | The README results table | F1 1.00 across five seeds, zero false links. Then say the weak number out loud: held-out injection recall is 0.29. Explain why that is survivable — the detector is not the control. Close on the coalition, not the stack. |
+| 0:00–0:15 | **Hook** | The inbox, empty, then the report list | "These reports look unrelated. They're not." |
+| 0:15–0:50 | **The problem** | Say who is in the network | One volunteer, reports arriving one at a time — adult protective services, police, a partner bank, an area agency on aging, coordinated part-time. The CFPB says hundreds of US counties run one. Each report is unremarkable alone; nobody has the hours to notice four of them were the same crew. |
+| 0:50–1:15 | **It already ran** | Click **Load prior reports** | "These came in over the weekend. Nobody was watching — the agent worked them anyway." Read the line at the top: *worked through 47 reports, folded in the repeats.* Point out: 54 reports, 0 campaigns, nothing waiting. |
+| 1:15–1:40 | **Discovery** | Paste a held-back report, **Add report** | Campaign count: 0 → 1. One decision arrives. *"Three residents. Three separate phone calls. Same callback number, same payment handle, same story."* **No one person could have seen this.** |
+| 1:40–2:40 | **Agentic judgment** | Open the case → **How this report was assessed** | Point at the per-step table. "Correlation — the part that decided these reports are the same crew — is a deterministic module, always, in every run. It is not something we let the model decide, because we tried that and it went wrong; more on that in a moment. What the agents *do* judge is bounded: three assessors — script, money-rail, isolation — hand off to each other, then a campaign agent judges the cluster this module already built. That row says which steps were real Strands agents and which were rule-based in this run." |
+| 2:40–3:20 | **What it prepared** | The decision card | States what changed, lists the linking evidence in plain words, has the warning already written. "The agent drafts, a human sends — a rule outside the model, not a line in a prompt." |
+| 3:20–3:40 | **The human decision** | Edit one sentence, then **Approve and send** | "Approving is bound to this exact wording. Change a word and the approval no longer applies." Show the sandbox outbox. |
+| 3:40–4:30 | **The attack** | Paste the hostile report with a forged `APPROVAL_TOKEN`; open **Policy decisions**, **Show denied only** | Denials, tagged to that report, marked *from report text*. "This report tried to mint its own approval and asked us to broadcast its text. Both refused, on the record, tagged to this report id. Report content cannot manufacture authority." Then: "it is still triaged as a real scam — the fraud underneath did not get lost because the text was also hostile." |
+| 4:30–4:55 | **Why this matters** | The README results table, ten seconds, no longer | F1 1.00 across five seeds, zero false links, 200 tests, CI green on Linux. Say the weak number out loud too: held-out injection recall is 0.29 — the detector is a signal, not the control; the policy boundary is. Porchlight turns disconnected reports into campaign-level evidence while keeping consequential authority outside untrusted content. |
+| 4:55–5:00 | **Close** | Cut to black or the title card | One sentence, nothing added after it: "The system does not give a model unrestricted authority — it judges where judgment helps, and refuses everywhere else." |
 
 ## The 3:00 cut
 
-Keep: 0:00–0:25, 0:50–2:00, 2:50–3:20 compressed to 20 seconds, 3:20–4:15 cut to
-30 seconds, and a 15-second close on the measured results.
+Keep: the hook, **It already ran** through **Discovery** compressed to 40
+seconds total, **Agentic judgment** cut to 25 seconds (just the per-step table
+and the one line about correlation never being model-judged), **The attack**
+cut to 30 seconds, and a 10-second close on the measured results plus the
+final sentence.
 
-Drop: the "who it's for" beat (fold one sentence into the opening), the
-architecture diagram, the edit-invalidates-approval detail.
+Drop: the "who it's for" detail beyond one clause folded into the opening,
+**What it prepared** as its own beat (fold into the human-decision beat), the
+edit-invalidates-approval detail.
 
-Never drop: the campaign forming, the policy denial, and the sentence *"no one
-person could have seen this."*
+Never drop: the campaign forming, the agentic-judgment table, the policy
+denial, and the sentence *"no one person could have seen this."*
 
 ---
 

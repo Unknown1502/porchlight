@@ -18,9 +18,9 @@ assume either.
 | # | Requirement | Status | Owner |
 |---|---|---|---|
 | 1 | Text description of the project | ✅ drafted in `docs/submission-copy.md`, including an honest-status section | **HUMAN** to paste |
-| 2 | **Public** repo URL | ✅ pushed to `https://github.com/Unknown1502/porchlight` — **HUMAN** must confirm the GitHub visibility setting is Public, not just "not yet configured private" | **HUMAN** to confirm |
+| 2 | **Public** repo URL | ✅ pushed to `https://github.com/Unknown1502/porchlight`; confirmed public via the GitHub API (`"private": false, "visibility": "public"`) | done |
 | 3 | All source + setup instructions to run it | ✅ `README.md` quick start, `make install` verified against pinned deps | done |
-| 4 | MIT or Apache licence **visible in the repo About section** | ⚠ `LICENSE` (Apache-2.0) is at the repo root and declared in `pyproject.toml`; the *About section* is a GitHub UI field that only appears once the repo is pushed | **HUMAN** |
+| 4 | MIT or Apache licence **visible in the repo About section** | ✅ `LICENSE` now carries the full canonical Apache-2.0 text (it was previously a 17-line summary pointing at the URL, which is not enough text for GitHub's license detector to match — confirmed via the API, `license.spdx_id` was `NOASSERTION`). Replaced with the complete text from `apache.org/licenses/LICENSE-2.0.txt`; **HUMAN** should re-check the About section after this push reaches GitHub, detection can take a minute | **HUMAN** to re-confirm after push |
 | 5 | README | ✅ present, claims table, deployment status table | done |
 | 6 | Architecture diagram (image in repo) | ✅ `docs/architecture.svg` — pipeline, trust boundary, human boundary, and a row stating what is *not* verified | done |
 | 7 | Demo video ≤ 5 min on YouTube/Vimeo, covering (1) problem (2) who it's for (3) why it matters | ◻ not recorded | **HUMAN** (script: `docs/demo-script.md`) |
