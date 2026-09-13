@@ -9,11 +9,33 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, get_origin
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .trace import Trace
+
+
+class _NoneListsToEmpty(BaseModel):
+    """Base for structured-output models with list fields.
+
+    Claude consistently emits ``[]`` for "no items". Amazon Nova Pro was
+    observed live (2026-09-13, see docs/CLAW-BACK.md) emitting ``null`` for the
+    same meaning instead, which fails validation on every ``list[...]`` field
+    rather than just the one it happened to null out first. Both mean the same
+    thing here, so the coercion lives once, at the base, rather than as a
+    per-field validator that only catches whichever field broke last.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _null_lists_become_empty(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        for name, field in cls.model_fields.items():
+            if data.get(name) is None and get_origin(field.annotation) is list:
+                data[name] = []
+        return data
 
 
 # --------------------------------------------------------------------------
@@ -61,7 +83,7 @@ class MoneyRail(str, Enum):
     UNKNOWN = "unknown"
 
 
-class Indicators(BaseModel):
+class Indicators(_NoneListsToEmpty):
     phone_numbers: list[str] = Field(default_factory=list)
     urls: list[str] = Field(default_factory=list)
     domains: list[str] = Field(default_factory=list)
@@ -111,7 +133,7 @@ class IndicatorFinding(BaseModel):
     detail: str = ""
 
 
-class CorroborationResult(BaseModel):
+class CorroborationResult(_NoneListsToEmpty):
     findings: list[IndicatorFinding] = Field(default_factory=list)
     prior_reports_matched: list[str] = Field(default_factory=list)
     corroboration_summary: str
@@ -130,7 +152,7 @@ class Urgency(str, Enum):
     BLACK = "black"      # money already gone — recovery clock is running
 
 
-class StageAssessment(BaseModel):
+class StageAssessment(_NoneListsToEmpty):
     urgency: Urgency
     hours_to_irreversible: Optional[float] = Field(
         default=None, description="Best estimate of hours until loss becomes unrecoverable. None if unknown."
@@ -211,7 +233,7 @@ DRAFT_ACTIONS: dict[str, str] = {
 }
 
 
-class ResponseResult(BaseModel):
+class ResponseResult(_NoneListsToEmpty):
     drafts: list[Draft]
     decision_for_human: str = Field(
         description="The one decision the coordinator must make. This is the ONLY thing that "

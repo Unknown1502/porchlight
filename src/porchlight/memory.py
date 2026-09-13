@@ -5,20 +5,32 @@ makes Porchlight a Good Neighbor agent rather than a personal assistant: the
 agent's long-term memory is the neighbourhood's shared picture of who is being
 worked, and the value compounds with every report any resident files.
 
-**What is actually wired, as of this commit.** The community record store —
-the thing campaign correlation reads — is ``tools/store.py``, a JSON file, in
-every mode. It is not backed by AgentCore Memory, and setting
-``AGENTCORE_MEMORY_ID`` does not change where records are read from or written
-to. ``create_memory_resource`` below does create a real AgentCore Memory
-resource, and ``build_session_manager`` returns a working Strands session
-manager, but **nothing calls the latter**: no agent in ``agents/factory.py`` is
-constructed with a ``session_manager``.
+**What is actually wired, as of 2026-09-13.** Two different things share the
+name "memory" here, and only one of them is backed by AgentCore:
 
-That is a gap, not a feature, and it is written here rather than in a footnote
-because the shape of the module invites the opposite assumption. Wiring it up
-means deciding what belongs in agent conversation memory versus the structured
-record store, which are different things — the session manager carries turns,
-and correlation needs rows. See "Limitations" in the README.
+- **The community record store** — the thing campaign correlation reads — is
+  ``tools/store.py``, a JSON file, in every mode. Setting ``AGENTCORE_MEMORY_ID``
+  does not change where records are read from or written to, and there is no
+  plan to change that: correlation needs synchronous reads across every record
+  in the community, which is a different access pattern from a conversational
+  memory API, not a gap to be closed by pointing one at the other.
+- **Agent conversation memory** — one Strands session per agent role
+  (``intake``, ``corroboration``, the three stage-swarm assessors, ``campaign``,
+  ``response``), scoped per community, via ``build_session_manager`` and wired
+  into every builder in ``agents/factory.py``. This *is* backed by a real
+  AgentCore Memory resource
+  (``PorchlightCommunityMemory-csMZJnAAJD``, ``us-west-2``, `ACTIVE`, two
+  strategies: semantic fact extraction and session summarisation). Verified
+  live: a real agent call was made with a session manager attached, and
+  ``list_events`` on the memory resource independently confirmed the turn was
+  persisted — this is not just "the client didn't raise."
+
+Two bugs were found only by doing that: ``community_actor_id`` returned
+``"coalition::{id}"`` (a double colon), which AgentCore's actor-id pattern
+rejects outright, and the session ids `agents/factory.py` built used ``:`` as a
+separator, which the session-id pattern also rejects (only alnum/``-``/``_``).
+Both are fixed; both were invisible until a session manager was actually
+constructed against the live service, since no test does that.
 """
 from __future__ import annotations
 
@@ -35,8 +47,14 @@ def community_actor_id(community_id: str) -> str:
 
     Note the deliberate shape: the *coalition* is the actor. Residents are never
     actors, so no resident ever gets a durable profile in this system.
+
+    Single colon, not the double colon this returned before 2026-09-13. Verified
+    live against ``ListEvents``: AgentCore rejects an actor id containing ``::``
+    — it requires ``segment(:segment)*``, and a doubled colon produces an empty
+    segment. Caught only once a session manager was actually constructed against
+    the real service; nothing offline exercises this path.
     """
-    return f"coalition::{community_id}"
+    return f"coalition:{community_id}"
 
 
 def build_session_manager(session_id: str):

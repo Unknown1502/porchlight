@@ -322,36 +322,85 @@ withdraw.
 | AgentCore Runtime contract | **Verified** | `GET /ping` + `POST /invocations` served and tested (`tests/test_server.py`) |
 | AgentCore Policy engine | **Verified** | Engine created in a real account and reached `ACTIVE`; `deploy/setup_policy.sh` is idempotent against it |
 | Cedar accepted by AgentCore | **Verified** | `CreatePolicy` accepts `definition.cedar.statement` with `enforcementMode` `ACTIVE`/`LOG_ONLY` |
-| Porchlight's 5 rules enforced at a Gateway | **Not verified** | Blocked: action-scoped policies require a specific `AgentCore::Gateway` ARN, and no gateway has been built. See below. |
-| CloudWatch denial records | **Not verified** | Follows from the above |
-| AgentCore Memory backing the store | **Not wired** | The record store is a JSON file in every mode; see Limitations |
+| Porchlight's 5 rules enforced at a Gateway | **Loaded and ACTIVE at a real Gateway; not yet in the tool-call path** | `PorchlightGateway` exists (`READY`), the policy engine is attached to it in `ENFORCE` mode, and `list-policies` confirms all 5 rules reached `ACTIVE` against that gateway's real ARN. The running app does not yet call this gateway — see below. |
+| CloudWatch denial records | **Verified** | `PORCHLIGHT_CLOUDWATCH_LOG_GROUP` mirrors every policy decision to a real log group; a planted denial was fetched back with `aws logs get-log-events` |
+| AgentCore Memory backing agent conversation | **Verified** | Every agent role gets a real AgentCore Memory session (`PorchlightCommunityMemory-csMZJnAAJD`, `ACTIVE`); a live call was made and `list_events` independently confirmed the turn persisted. The structured record store correlation reads remains a JSON file, by design — see Limitations |
 | Deployed to AgentCore Runtime | **Not deployed** | `list-agent-runtimes` returns empty |
-| Live model mode (Bedrock) | **Partially verified** | The intake agent returned a valid structured result from `global.anthropic.claude-sonnet-4-6`. Subsequent calls are blocked account-wide by `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT`, so the full five-node run has not completed live. |
+| Live model mode (Bedrock) | **Verified — full five-node run, zero errors** | Anthropic's model is blocked account-wide by `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT` (an AWS Marketplace billing subscription issue, confirmed external — see below). With `PORCHLIGHT_MODEL_ID=us.amazon.nova-pro-v1:0` and nothing else changed, intake → corroboration → stage swarm → correlation → response completed live end to end: 5 drafts produced, 1 correctly held at the policy boundary pending approval. Same architecture, same policy layer, different Bedrock model — see below. |
 
-**The gateway blocker, precisely.** AgentCore Policy rejects a Cedar policy whose
-resource scope is a wildcard, and requires `resource == AgentCore::Gateway::"<arn>"`
-for any policy that constrains the action. A blanket forbid scoped to the gateway
-*type* is accepted by the API and then lands in `CREATE_FAILED` with *"Overly
-Restrictive: Policy Engine will deny every request"* — so `CreatePolicy` returning
-success does not mean the policy exists. All five of Porchlight's rules constrain
-actions, so all five need a gateway to point at. `deploy/setup_policy.sh` creates
-the engine, stops there, and says so, rather than loading something weaker and
-letting this table imply the boundary is live.
+**The gateway row, precisely.** AgentCore Policy rejects a Cedar policy whose
+resource scope is a wildcard, requires `resource == AgentCore::Gateway::"<arn>"`
+for any policy that constrains the action, and — a third wall, hit only once a
+gateway existed — rejects an action nobody registered: Cedar validation fails
+with `unrecognized action ... did you mean "UnknownTool"?` until a gateway
+*target* actually declares that tool name. `PorchlightGateway` now exists with a
+target (`PorchlightTools`, backed by a stub Lambda — see
+`policies/README.md`) that declares all 15 tool names the Cedar files reference,
+and all 5 policies load and read back as `ACTIVE`, not merely `CreatePolicy`
+returning 200. What this does **not** mean: the running server still enforces
+every decision through `src/porchlight/policy.py`, in-process — nothing in the
+tool layer calls the Gateway's MCP endpoint yet, so the stub Lambda backing
+`PorchlightTools` has never been invoked by a live report. The rules are real
+and active at a real boundary; routing this app's actual tool calls through
+that boundary is separate work, not done. `policies/README.md` has the full
+detail and the exact commands used to verify each claim.
 
-Until a gateway exists, the same five rules are enforced in-process by
-`src/porchlight/policy.py`, and the dashboard reports the backend as
-**"local Cedar-equivalent shim"** next to the audit log.
-`tests/test_policy_parity.py` asserts the two implementations agree on the action
-set and on what P002 demands — not merely on policy ids.
+Whichever backend is actually deciding, `src/porchlight/policy.py` is what the
+running server calls, and the dashboard's badge — **"local Cedar-equivalent
+shim"** or **"AgentCore Policy (gateway)"**, depending on whether
+`AGENTCORE_POLICY_ENGINE_ID` is set — always names which one, next to the audit
+log. `tests/test_policy_parity.py` asserts the two implementations agree on the
+action set and on what P002 demands — not merely on policy ids.
+
+**The live-model row, precisely.** Amazon Nova Pro and Meta Llama 3.3 were
+tested directly against this account's Bedrock endpoint (`converse`) and both
+succeeded on the first call — the `INVALID_PAYMENT_INSTRUMENT` block is
+specific to completing Anthropic's AWS Marketplace listing, not a restriction
+on the account's Bedrock access generally. Switching only
+`PORCHLIGHT_MODEL_ID` to `us.amazon.nova-pro-v1:0` and running the same
+`process_report()` pipeline with `PORCHLIGHT_OFFLINE=0` surfaced three real
+things, two of them latent bugs no test had ever reached:
+
+1. A Nova structured-output call sometimes emits `null` for an empty list where
+   Claude emits `[]`. Fixed at the model layer (`src/porchlight/models.py`,
+   `_NoneListsToEmpty`) rather than papered over per call site.
+2. `pipeline._extract_structured()` read `swarm_result.execution_order`, which
+   does not exist on `strands-agents` 1.55.0's `SwarmResult` — the field is
+   `node_history`, and the parsed model lives at
+   `results[node_id].result.structured_output`, not on the `NodeResult`
+   directly. Offline mode never calls this function at all (`_run_offline` sets
+   `case.stage` directly), so this was wrong behind 200 green tests until a
+   live run finally reached it.
+3. The stage swarm's last speaker sometimes ends its turn on plain text instead
+   of the structured tool call. Fixed with the same two-phase pattern already
+   used for the corroboration node: ask that agent directly for the schema over
+   its own finished conversation, rather than re-running the swarm.
+
+With those three fixes, `intake → corroboration → stage → correlation →
+response` completed live, end to end, with `case.errors == []`: 5 drafts, 1
+correctly gated at the policy boundary pending a coordinator's approval. The
+Devpost rules for this hackathon name the Strands Agents SDK as the
+requirement, not a specific model vendor — Bedrock AgentCore is called out as
+strengthening the score, not mandatory — so running live against a different
+Bedrock model is a legitimate substitution, not a rules workaround. Anthropic's
+model remains the intended default in `.env.example`; switching back is a
+one-line change once the Marketplace subscription clears.
 
 ## Limitations
 
-- **Community memory is a JSON file.** `AGENTCORE_MEMORY_ID` creates a real
-  AgentCore Memory resource, but nothing reads from it: no agent is constructed
-  with a session manager. In a container without a volume, the coalition's
-  institutional memory dies with the container.
+- **The structured record store is a JSON file, deliberately, not a gap.**
+  Campaign correlation needs synchronous reads across every record in a
+  community — a different access pattern from a conversational memory API — so
+  it is not backed by AgentCore Memory and there is no plan to change that. In
+  a container without a volume, this store does not survive a restart.
+- **Agent conversation memory is backed by AgentCore Memory**, per role, per
+  community (`src/porchlight/memory.py`, `agents/factory.py`). This is turns,
+  not records: what an agent remembers about how it has reasoned before, not
+  the case data correlation depends on.
 - **The policy boundary is in-process today**, which means it is outside the
-  model but inside the same trust boundary as the agent. Moving it to the gateway
+  model but inside the same trust boundary as the agent. The five rules are
+  loaded and `ACTIVE` at a real AgentCore Gateway (see Deployment status), but
+  the running app does not call it — moving enforcement itself to the gateway
   is the difference between a strong control and an enforced one.
 - **`detect_injection` is signature-based** and misses 4 of 7 held-out evasions.
   It is a finding-generator, not a control.

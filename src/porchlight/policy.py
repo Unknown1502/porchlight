@@ -339,14 +339,63 @@ def _attribute(d: Decision, ctx: dict[str, Any]) -> Decision:
     return d
 
 
+_CLOUDWATCH_STREAM = f"policy-{int(time.time())}"
+_cloudwatch_stream_ready = False
+
+
+def _cloudwatch_log(d: Decision) -> None:
+    """Mirror one decision to a real CloudWatch Logs group, if configured.
+
+    Off by default (``PORCHLIGHT_CLOUDWATCH_LOG_GROUP`` unset) so tests and the
+    offline demo never make a network call. Also off whenever
+    ``PORCHLIGHT_OFFLINE=1`` even if a log group *is* configured — a developer's
+    local ``.env`` set up for a live-mode verification session must not turn
+    every offline-stub decision (`tasks.py check`'s eval alone raises hundreds)
+    into a real AWS network call. Offline mode is the free, no-AWS-account path
+    the README promises a judge; mirroring synthetic decisions to CloudWatch
+    would quietly break that promise the moment a log group is configured. When
+    active, failures here are swallowed the same way a missing local store is:
+    CloudWatch is a second, verifiable copy of the audit trail, not the trail
+    itself, so it must never be able to break enforcement.
+    """
+    s = settings()
+    group = s.cloudwatch_log_group
+    if not group or s.offline:
+        return
+    global _cloudwatch_stream_ready
+    try:
+        import json as _json  # noqa: PLC0415
+
+        import boto3  # noqa: PLC0415
+
+        client = boto3.client("logs", region_name=settings().region)
+        if not _cloudwatch_stream_ready:
+            try:
+                client.create_log_stream(logGroupName=group, logStreamName=_CLOUDWATCH_STREAM)
+            except client.exceptions.ResourceAlreadyExistsException:
+                pass
+            _cloudwatch_stream_ready = True
+        client.put_log_events(
+            logGroupName=group,
+            logStreamName=_CLOUDWATCH_STREAM,
+            logEvents=[{
+                "timestamp": int(d.at * 1000),
+                "message": _json.dumps(d.to_audit()),
+            }],
+        )
+    except Exception:  # noqa: BLE001 — CloudWatch is a mirror, never the source of truth
+        log.debug("could not mirror decision to CloudWatch", exc_info=True)
+
+
 def _record(d: Decision, ctx: dict[str, Any]) -> Decision:
-    """Append one decision to the audit trail — both copies of it.
+    """Append one decision to the audit trail — every copy of it.
 
     The in-memory list is what a single ``process_report`` call attaches to its
     case file. The durable table is what the coordinator's audit panel reads and
     what survives a restart. Writing only the first is how the panel ends up
     empty while the policy engine is demonstrably refusing things: two stores,
-    one of them invisible.
+    one of them invisible. CloudWatch, when configured, is a third — real
+    evidence outside this process entirely.
     """
     _attribute(d, ctx)
     AUDIT.append(d)
@@ -363,6 +412,7 @@ def _record(d: Decision, ctx: dict[str, Any]) -> Decision:
         ))
     except Exception:  # noqa: BLE001 — no store configured; the in-memory trail stands
         log.debug("no durable store for the audit trail", exc_info=True)
+    _cloudwatch_log(d)
     return d
 
 

@@ -44,13 +44,64 @@ the Devpost rules tab before publishing.
 
 | Blocker | Effect | Status |
 |---|---|---|
-| **No AWS account can complete an Anthropic Bedrock Marketplace subscription.** Original account: `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT`, unresolved even after adding a Visa card — Bedrock model billing runs through AWS Marketplace, a separate subscription check from general account billing, and Marketplace subscriptions require a credit card specifically; a debit card added to the account does not clear it. A second, brand-new AWS account hit a different wall: new-account verification (cleared after ~2h), then `ValidationException: Operation not allowed` (fixed by submitting Anthropic's first-time use-case form), then a final `AccessDeniedException: ... create a support case` requiring AWS Support to manually clear — not resolvable same-day. | Live model mode cannot run on either account. Offline mode is fully unaffected — the demo, tests, and eval all run without any AWS account. | **Closed, not pursued further.** No credit card available; investigated on 2026-09-11/12, confirmed a hard external constraint rather than a config error. Not required by the rules (AgentCore/live mode strengthens Technical Implementation, it isn't mandatory). |
+| **No AWS account can complete an Anthropic Bedrock Marketplace subscription.** Original account: `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT`, unresolved even after adding a Visa card — Bedrock model billing runs through AWS Marketplace, a separate subscription check from general account billing, and Marketplace subscriptions require a credit card specifically; a debit card added to the account does not clear it. A second, brand-new AWS account hit a different wall: new-account verification (cleared after ~2h), then `ValidationException: Operation not allowed` (fixed by submitting Anthropic's first-time use-case form), then a final `AccessDeniedException: ... create a support case` requiring AWS Support to manually clear — not resolvable same-day. | Anthropic's model specifically cannot run on either account. Worked around on 2026-09-13 — see below — so this no longer blocks live mode overall, only the specific model id. | **Confirmed external, worked around.** No credit card available; the block is Anthropic's Marketplace listing specifically, not Bedrock access generally (verified below). Not required by the rules regardless (AgentCore/live mode strengthens Technical Implementation, it isn't mandatory) — but now demonstrated live anyway. |
 
 Worth knowing: an earlier attempt on the original account *did* reach Bedrock and
 the intake agent returned a valid structured result from
 `global.anthropic.claude-sonnet-4-6`, before this blocker appeared — so the model
-id and the Strands live-mode wiring are confirmed correct in principle. That
-result stands regardless of the billing blocker above.
+id and the Strands live-mode wiring were already confirmed correct in principle.
+
+**2026-09-13: worked around, not just worked around it in principle.** Tested
+`converse` directly against this account for `amazon.nova-lite-v1:0`,
+`us.amazon.nova-pro-v1:0` and `us.meta.llama3-3-70b-instruct-v1:0` — all three
+succeeded on the first call. Only Anthropic's models hit
+`INVALID_PAYMENT_INSTRUMENT`; the account's Bedrock access otherwise works.
+Setting `PORCHLIGHT_MODEL_ID=us.amazon.nova-pro-v1:0` and nothing else, a full
+`process_report()` run completed live — intake, corroboration, stage swarm,
+correlation, response — with `case.errors == []`. Confirmed against the
+Devpost rules page (fetched 2026-09-13): the requirement is the Strands Agents
+SDK, not a specific model vendor, so this is a legitimate substitution.
+
+Getting there surfaced four real, previously-latent bugs — none caused by
+switching models, all exposed by finally running live end to end:
+
+1. Amazon Nova Pro emits `null` for an empty list where Claude emits `[]`,
+   failing Pydantic validation on every `list[...]` structured-output field.
+   Fixed once, at the model layer (`src/porchlight/models.py`,
+   `_NoneListsToEmpty`).
+2. `pipeline._extract_structured()` read `swarm_result.execution_order`, which
+   does not exist on strands-agents 1.55.0's `SwarmResult` (`node_history` is
+   the real field), and looked for the parsed model on the wrong object.
+   Offline mode never calls this function — `_run_offline` sets `case.stage`
+   directly — so it was wrong behind all 200 tests until live mode reached it.
+3. The stage swarm's last speaker sometimes ends its turn on plain text
+   instead of the structured tool call. Fixed with the same two-phase pattern
+   already used for the corroboration node.
+4. Wiring `AgentCore Memory` into agent construction (see below) surfaced two
+   more: `community_actor_id` built an actor id with a double colon
+   (`coalition::id`), and session ids used `:` as a separator — both rejected
+   by AgentCore's id patterns, both caught only once a session manager was
+   actually constructed against the live service.
+
+All four are fixed and covered by the full green test suite plus this live
+verification. `docs/submission-copy.md` and the README's "Deployment status"
+section carry the same claims.
+
+**AgentCore Gateway, AgentCore Policy at that gateway, and AgentCore Memory —
+also done for real on 2026-09-13**, not carried over from the 2026-09-10/11
+sessions:
+
+- `PorchlightGateway` (READY) with the policy engine attached in `ENFORCE`
+  mode, a `PorchlightTools` target (a stub Lambda) declaring the 15 tool
+  actions the Cedar files reference, and all 5 policies loaded and reading
+  back `ACTIVE` — not just `CreatePolicy` returning 200. The running app does
+  not yet call this gateway for enforcement; see `policies/README.md` for
+  exactly what that does and does not mean.
+- `PorchlightCommunityMemory-csMZJnAAJD` (ACTIVE), with every agent role now
+  constructed with a real session manager against it, verified by an
+  independent `list_events` call after a live agent turn. The structured case
+  record store correlation reads is unaffected, by design — see README
+  Limitations.
 
 ## Pre-flight (run immediately before submitting)
 
@@ -78,10 +129,38 @@ Then confirm by eye:
 Anything billable that was created for the demo:
 
 ```bash
-agentcore destroy                                    # runtime, ECR, CodeBuild, IAM
+agentcore destroy                                    # runtime, ECR, CodeBuild, IAM — only if Runtime deploy is done
+
+# Gateway resources added 2026-09-13 (policies/README.md has the full story):
+aws bedrock-agentcore-control delete-gateway-target --region us-west-2 \
+  --gateway-identifier porchlightgateway-jtekgeso0t --target-id EYJOVCNKSO
+aws bedrock-agentcore-control delete-gateway --region us-west-2 \
+  --gateway-identifier porchlightgateway-jtekgeso0t
+aws lambda delete-function --region us-west-2 --function-name porchlight-gateway-target-stub
+aws iam delete-role-policy --role-name PorchlightGatewayExecutionRole --policy-name PorchlightGatewayPolicyEngineAccess
+aws iam delete-role-policy --role-name PorchlightGatewayExecutionRole --policy-name PorchlightGatewayInvokeTargetLambda
+aws iam delete-role --role-name PorchlightGatewayExecutionRole
+aws iam detach-role-policy --role-name PorchlightGatewayTargetLambdaRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+aws iam delete-role --role-name PorchlightGatewayTargetLambdaRole
+aws logs delete-log-group --region us-west-2 --log-group-name /porchlight/policy-denials
+
+# Policy engine (delete last — the gateway references it):
 aws bedrock-agentcore-control delete-policy-engine \
-  --region us-west-2 --policy-engine-id <id>         # policy engine
+  --region us-west-2 --policy-engine-id porchlight_policy-z8m1tlah9t
+
+# Memory resource added 2026-09-13:
+aws bedrock-agentcore-control delete-memory --region us-west-2 \
+  --memory-id PorchlightCommunityMemory-csMZJnAAJD
 ```
 
-Currently live in the author's account: policy engine `porchlight_policy-z8m1tlah9t`
-(us-west-2, ACTIVE, zero policies loaded). Nothing else.
+Currently live in the author's account, all in `us-west-2`:
+- Policy engine `porchlight_policy-z8m1tlah9t` — ACTIVE, 5 policies loaded
+- Gateway `porchlightgateway-jtekgeso0t` (`PorchlightGateway`) — READY, policy engine attached in `ENFORCE` mode
+- Gateway target `EYJOVCNKSO` (`PorchlightTools`) — READY, backed by the stub Lambda below
+- Lambda `porchlight-gateway-target-stub` — never invoked by a live report; exists only so Cedar validation has real tool names to check
+- IAM roles `PorchlightGatewayExecutionRole`, `PorchlightGatewayTargetLambdaRole`
+- CloudWatch log group `/porchlight/policy-denials` — real policy-denial mirror, used by the CloudWatch row in the README's deployment status table
+- Memory `PorchlightCommunityMemory-csMZJnAAJD` — ACTIVE, backs every agent role's conversation session; the structured case record store is unaffected (still a local JSON file)
+
+None of this is expensive to leave running for the ~1 day left before judging,
+but all of it should go before it becomes a forgotten line item.

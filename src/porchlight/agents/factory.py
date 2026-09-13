@@ -41,7 +41,26 @@ def model() -> BedrockModel:
     return BedrockModel(model_id=s.model_id, region_name=s.region, temperature=0.2)
 
 
-def build_intake_agent() -> Agent:
+def _session_manager(session_id: str | None):
+    """AgentCore-backed conversation memory for one agent role, or None.
+
+    None (the default, and the only option when ``AGENTCORE_MEMORY_ID`` is
+    unset) means the agent gets no memory beyond the single call it is used
+    for — the same behaviour as before this existed. When a session_id is
+    given and memory is configured, the agent's turns for that role persist in
+    AgentCore Memory, scoped to this community, and are restored the next time
+    a report is processed. This is conversational memory only: the structured
+    community record store (cases, reports, campaigns) that correlation reads
+    is unrelated and untouched by this — see README Limitations.
+    """
+    if session_id is None:
+        return None
+    from ..memory import build_session_manager  # noqa: PLC0415 — optional dependency path
+
+    return build_session_manager(session_id)
+
+
+def build_intake_agent(session_id: str | None = None) -> Agent:
     """No tools. Intake reads attacker-authored text, so it gets zero capability."""
     return Agent(
         model=model(),
@@ -49,25 +68,40 @@ def build_intake_agent() -> Agent:
         tools=[],
         structured_output_model=IntakeResult,
         name="intake",
+        session_manager=_session_manager(session_id),
     )
 
 
-def build_corroboration_agent() -> Agent:
+def build_corroboration_agent(session_id: str | None = None) -> Agent:
     return Agent(
         model=model(),
         system_prompt=CORROBORATION_PROMPT,
         tools=[*ENRICHMENT_TOOLS, lookup_prior_reports],
         structured_output_model=CorroborationResult,
         name="corroboration",
+        session_manager=_session_manager(session_id),
     )
 
 
-def build_stage_swarm() -> Swarm:
+def build_stage_swarm(session_id_prefix: str | None = None) -> Swarm:
     """Three assessors that disagree productively, with real handoffs."""
     common = dict(model=model(), tools=[], structured_output_model=StageAssessment)
-    script_matcher = Agent(system_prompt=SCRIPT_MATCHER_PROMPT, name="script_matcher", **common)
-    money_rail = Agent(system_prompt=MONEY_RAIL_PROMPT, name="money_rail", **common)
-    isolation = Agent(system_prompt=ISOLATION_PROMPT, name="isolation", **common)
+    prefix = f"{session_id_prefix}-" if session_id_prefix else None
+    script_matcher = Agent(
+        system_prompt=SCRIPT_MATCHER_PROMPT, name="script_matcher",
+        session_manager=_session_manager(f"{prefix}script_matcher" if prefix else None),
+        **common,
+    )
+    money_rail = Agent(
+        system_prompt=MONEY_RAIL_PROMPT, name="money_rail",
+        session_manager=_session_manager(f"{prefix}money_rail" if prefix else None),
+        **common,
+    )
+    isolation = Agent(
+        system_prompt=ISOLATION_PROMPT, name="isolation",
+        session_manager=_session_manager(f"{prefix}isolation" if prefix else None),
+        **common,
+    )
     return Swarm(
         [script_matcher, money_rail, isolation],
         entry_point=script_matcher,
@@ -80,17 +114,18 @@ def build_stage_swarm() -> Swarm:
     )
 
 
-def build_campaign_agent() -> Agent:
+def build_campaign_agent(session_id: str | None = None) -> Agent:
     return Agent(
         model=model(),
         system_prompt=CAMPAIGN_PROMPT,
         tools=[find_candidate_cluster],
         structured_output_model=CampaignResult,
         name="campaign",
+        session_manager=_session_manager(session_id),
     )
 
 
-def build_response_agent() -> Agent:
+def build_response_agent(session_id: str | None = None) -> Agent:
     """No send tools. Drafting only — sending is a gateway action, gated by policy."""
     return Agent(
         model=model(),
@@ -98,4 +133,5 @@ def build_response_agent() -> Agent:
         tools=[],
         structured_output_model=ResponseResult,
         name="response",
+        session_manager=_session_manager(session_id),
     )

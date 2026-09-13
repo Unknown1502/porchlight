@@ -5,6 +5,12 @@ from pathlib import Path
 os.environ.setdefault("PORCHLIGHT_OFFLINE", "1")
 os.environ.setdefault("PORCHLIGHT_COMMUNITY_ID", "test-coalition")
 os.environ.setdefault("PORCHLIGHT_FIXTURE_TOOLS", "1")
+# Force off, not setdefault: a developer's local .env may set this for a real
+# demo run, and config.py's load_dotenv() would otherwise carry it into every
+# test process, making all 200 tests write real policy denials to CloudWatch on
+# every P001-P005 rule that fires. Tests must never touch AWS regardless of
+# what a local .env says.
+os.environ["PORCHLIGHT_CLOUDWATCH_LOG_GROUP"] = ""
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pytest  # noqa: E402

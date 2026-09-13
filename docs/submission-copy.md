@@ -179,13 +179,29 @@ Judges should not have to discover this by testing:
 - **Deployed to AgentCore Runtime: no.** The Runtime contract (`GET /ping`,
   `POST /invocations`) is served and verified inside the arm64 container, but
   nothing is running in AWS.
-- **AgentCore Policy: engine created and ACTIVE in a real account.** The five
-  Cedar rules are *not* loaded, because AgentCore requires an action-scoped
-  policy to name a specific Gateway ARN and no Gateway has been built. Until then
-  the same rules are enforced in-process and the UI says so.
-- **Live model mode: partially verified.** The intake agent returned a valid
-  structured result from `global.anthropic.claude-sonnet-4-6`; the account then
-  lost Bedrock access (`INVALID_PAYMENT_INSTRUMENT`), so the full five-node run
-  has not completed live.
+- **AgentCore Policy: engine ACTIVE, Gateway READY, all 5 Cedar rules loaded and
+  ACTIVE against it.** `PorchlightGateway` exists with the policy engine
+  attached in `ENFORCE` mode and a tool target (`PorchlightTools`) declaring the
+  15 actions the rules reference; `list-policies` confirms all 5 reached
+  `ACTIVE`, not merely that `CreatePolicy` returned 200. What is still true: the
+  running app enforces every decision through the in-process module, not by
+  calling this Gateway — the tool target is a stub that exists only so Cedar's
+  validator has real action names to check against. The UI's backend label and
+  `policies/README.md` both say so.
+- **Live model mode: verified, full five-node run, zero errors.** Anthropic's
+  model is blocked account-wide by an AWS Marketplace billing subscription
+  issue (`INVALID_PAYMENT_INSTRUMENT`) — confirmed external, not a code
+  problem. Amazon Nova Pro on the same Bedrock endpoint is not blocked;
+  switching only `PORCHLIGHT_MODEL_ID` ran intake through response live,
+  end to end, and surfaced two real latent bugs (a broken swarm-result field
+  name, a model-output convention mismatch) that 200 green offline tests had
+  never reached. Both fixed. The hackathon rules require the Strands Agents
+  SDK, not a specific model vendor, so this is a substitution, not a
+  workaround — see README "Deployment status" for the full trail.
+- **AgentCore Memory: verified for agent conversation, not for the record
+  store.** Every agent role gets a real AgentCore Memory session, and a live
+  write was independently confirmed with `list_events`. The structured case
+  record store correlation depends on remains a JSON file — a considered
+  architecture split, not an oversight (see README Limitations).
 - **All data is synthetic.** No real report, resident, or organisation appears
   anywhere.

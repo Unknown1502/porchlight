@@ -32,6 +32,12 @@ class Settings:
     memory_id: str = os.getenv("AGENTCORE_MEMORY_ID", "")
     gateway_url: str = os.getenv("AGENTCORE_GATEWAY_URL", "")
     policy_engine_id: str = os.getenv("AGENTCORE_POLICY_ENGINE_ID", "")
+
+    # Real CloudWatch Logs group for policy denial records. Empty (the default)
+    # means denials are recorded only in the local audit table — correct for
+    # tests and the offline demo, which must not reach AWS. Set this to mirror
+    # every denial to CloudWatch as well; see policy.py's _cloudwatch_log.
+    cloudwatch_log_group: str = os.getenv("PORCHLIGHT_CLOUDWATCH_LOG_GROUP", "")
     urlhaus_key: str = os.getenv("URLHAUS_AUTH_KEY", "")
 
     # Where the transactional store lives. Empty => porchlight.db at the repo

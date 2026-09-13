@@ -205,7 +205,7 @@ def _run_agents(case: CaseFile, report: Report, rec: TraceRecorder) -> None:
 
     # --- Node 1: intake -------------------------------------------------
     with rec.step("intake") as st:
-        intake = build_intake_agent().structured_output(
+        intake = build_intake_agent(f"{report.community_id}-intake").structured_output(
             type(case).model_fields["intake"].annotation.__args__[0],  # IntakeResult
             f"Extract the record from this report.\n\nChannel: {report.channel.value}\n"
             f"Volunteer note (semi-trusted): {report.volunteer_note}\n\n{art}",
@@ -226,7 +226,7 @@ def _run_agents(case: CaseFile, report: Report, rec: TraceRecorder) -> None:
     with rec.step("corroboration") as st:
         keys = sorted(indicator_keys(intake.indicators))
         case.corroboration = _tool_then_structure(
-            build_corroboration_agent(),
+            build_corroboration_agent(f"{report.community_id}-corroboration"),
             CorroborationResult,
             "Corroborate this report using your tools. Check only these indicators.\n\n"
             f"script_fingerprint: {intake.script_fingerprint}\n"
@@ -254,7 +254,7 @@ def _run_agents(case: CaseFile, report: Report, rec: TraceRecorder) -> None:
             volunteer_note=report.volunteer_note or "(none)",
             artefact_envelope=art,
         )
-        swarm_result = build_stage_swarm()(swarm_task)
+        swarm_result = build_stage_swarm(f"{report.community_id}-stage")(swarm_task)
         case.stage = _extract_structured(swarm_result, StageAssessment)
         st.outcome = f"{case.stage.urgency.value.upper()} — {case.stage.playbook_stage}"
         st.recommendation = case.stage.recommended_human_action
@@ -266,7 +266,7 @@ def _run_agents(case: CaseFile, report: Report, rec: TraceRecorder) -> None:
     with rec.step("correlation") as st:
         _provisional_record(case, report)
         case.campaign = _tool_then_structure(
-            build_campaign_agent(),
+            build_campaign_agent(f"{report.community_id}-campaign"),
             CampaignResult,
             f"Judge whether report {report.report_id} belongs to a real campaign. "
             f"Call find_candidate_cluster('{report.report_id}') first.\n\n"
@@ -285,7 +285,7 @@ def _run_agents(case: CaseFile, report: Report, rec: TraceRecorder) -> None:
     from .models import ResponseResult
 
     with rec.step("response") as st:
-        case.response = build_response_agent().structured_output(
+        case.response = build_response_agent(f"{report.community_id}-response").structured_output(
             ResponseResult,
             "Draft what this case needs. Draft nothing it does not need.\n\n"
             f"Jurisdiction pack: {json.dumps({'name': pack.display_name, 'reporting': pack.reporting, 'partners': pack.partners}, default=str)}\n\n"
@@ -323,16 +323,43 @@ def _tool_then_structure(agent: Any, model_cls: Any, task: str):
 
 
 def _extract_structured(swarm_result: Any, model_cls):
-    """Pull the final structured assessment out of a Swarm result."""
-    for node_id in reversed(getattr(swarm_result, "execution_order", []) or []):
-        nid = getattr(node_id, "node_id", node_id)
-        node = (getattr(swarm_result, "results", {}) or {}).get(nid)
-        payload = getattr(node, "result", None)
-        if isinstance(payload, model_cls):
-            return payload
-        structured = getattr(node, "structured_output", None)
+    """Pull the final structured assessment out of a Swarm result.
+
+    Never exercised by any test before 2026-09-13 — offline mode (every test in
+    the suite) sets ``case.stage`` directly in ``_run_offline`` and never calls
+    this function at all, so two real bugs here were invisible behind 200 green
+    tests until a live run finally reached it:
+
+    1. ``SwarmResult`` has no ``execution_order`` attribute in strands-agents
+       1.55.0 — the ordered list is ``node_history`` (a list of ``SwarmNode``,
+       not bare ids) — and the parsed model lives two levels down, at
+       ``results[node_id].result.structured_output`` (an ``AgentResult``
+       field), not directly on the ``NodeResult``.
+    2. Observed live against Amazon Nova Pro: the swarm's final agent
+       sometimes ends its turn on plain text instead of the structured tool
+       call, leaving every node's ``structured_output`` ``None`` even though
+       the assessment is right there in the conversation. Exactly the failure
+       mode ``_tool_then_structure`` already exists to fix for the
+       corroboration node — the same two-phase repair applies here: ask the
+       last speaker's own agent (which still holds the full swarm
+       conversation) to restate its conclusion as the schema, rather than
+       re-running the swarm from scratch.
+    """
+    history = list(getattr(swarm_result, "node_history", []) or [])
+    for swarm_node in reversed(history):
+        node_id = getattr(swarm_node, "node_id", swarm_node)
+        node_result = (getattr(swarm_result, "results", {}) or {}).get(node_id)
+        agent_result = getattr(node_result, "result", None)
+        structured = getattr(agent_result, "structured_output", None)
         if isinstance(structured, model_cls):
             return structured
+
+    if history:
+        last_speaker = history[-1].executor
+        structured = last_speaker.structured_output(model_cls)
+        if isinstance(structured, model_cls):
+            return structured
+
     raise RuntimeError("stage swarm produced no StageAssessment")
 
 
