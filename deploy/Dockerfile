@@ -22,12 +22,21 @@ FROM --platform=linux/arm64 python:3.12-slim
 # exactly that by grepping a .env file the container never sees. The check was
 # real, the thing it checked was not reachable. Pinning it in the image is what
 # actually makes the deployed agent run on Bedrock.
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PYTHONPATH=/app/src \
-    PORCHLIGHT_OFFLINE=0 \
-    PORT=8080
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PYTHONPATH=/app/src
+ENV PORCHLIGHT_OFFLINE=0
+ENV PORT=8080
+ENV AWS_REGION=us-west-2
+# Pinned to Nova Pro, not the project's documented intended model
+# (global.anthropic.claude-sonnet-4-6), because Anthropic's models are
+# blocked account-wide by an AWS Marketplace billing issue
+# (INVALID_PAYMENT_INSTRUMENT — confirmed 2026-09-14, see docs/CLAW-BACK.md).
+# Nova Pro is what the recorded demo actually verified live, end to end, on
+# this same account. Shipping the Anthropic default here would deploy a
+# container that fails on its first real request.
+ENV PORCHLIGHT_MODEL_ID=us.amazon.nova-pro-v1:0
 
 WORKDIR /app
 

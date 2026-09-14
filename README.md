@@ -184,7 +184,46 @@ See **[docs/threat-model.md](docs/threat-model.md)**.
 
 ## Architecture
 
-Diagram: **[docs/architecture.svg](docs/architecture.svg)**. Rationale: **[docs/architecture.md](docs/architecture.md)**.
+```mermaid
+flowchart TD
+    R[["Report arrives<br/>SMS · email · voicemail · volunteer note"]]
+    R --> SAN["scrub_pii + detect_injection<br/><i>deterministic pre-processing</i>"]
+    SAN --> N1
+
+    subgraph SPINE["Strands Graph — deterministic spine"]
+        N1["<b>intake_agent</b><br/>no tools<br/>→ IntakeResult"]
+        N2["<b>corroboration_agent</b><br/>4 allow-listed tools<br/>→ CorroborationResult"]
+        N3["<b>stage_swarm</b> — Strands Swarm<br/>script_matcher ⇄ money_rail ⇄ isolation<br/>→ StageAssessment"]
+        N4["<b>campaign_agent</b><br/>find_candidate_cluster<br/>→ CampaignResult"]
+        N5["<b>response_agent</b><br/>no tools<br/>→ ResponseResult"]
+        N1 --> N2 --> N3 --> N4 --> N5
+    end
+
+    N2 -.reads.-> MEM[("Community record store — JSON file<br/><i>deliberate: correlation needs synchronous reads across every record</i>")]
+    N4 -.reads.-> MEM
+    N5 --> MEM
+
+    N1 -.session.-> AMEM[("AgentCore Memory — real, per agent role<br/><i>conversation only, actor = coalition not resident</i>")]
+    N2 -.session.-> AMEM
+    N3 -.session.-> AMEM
+    N4 -.session.-> AMEM
+    N5 -.session.-> AMEM
+
+    N4 --> CORR["correlation.py<br/><i>deterministic union-find</i><br/>hard indicators, then fenced fingerprint links"]
+    CORR --> N4
+
+    N5 --> GATE{{"POLICY BOUNDARY<br/>Cedar rules, default-deny, audited<br/><i>enforced in-process; loaded+ACTIVE at a real AgentCore Gateway, not yet in the tool-call path</i>"}}
+    GATE -->|permit + approval token| OUT["SMS · flyer · complaint · partner brief"]
+    GATE -->|forbid| AUDIT[["Denial record<br/>P001 · P002 · P003 · P004 · P005<br/>mirrored to real CloudWatch"]]
+
+    OUT --> HUMAN(["Coordinator approves<br/><i>the only thing that surfaces</i>"])
+
+    N5 -.runs inside.-> RUNTIME["AgentCore Runtime — deployed, verified live<br/>arn:.../runtime/porchlight-cOsdTnHogs"]
+```
+
+Full rationale for every box, and the deployment status behind each dotted
+line: **[docs/architecture.md](docs/architecture.md)**. Static image version:
+**[docs/architecture.svg](docs/architecture.svg)**.
 
 ### Global core, local adapter
 
@@ -325,7 +364,7 @@ withdraw.
 | Porchlight's 5 rules enforced at a Gateway | **Loaded and ACTIVE at a real Gateway; not yet in the tool-call path** | `PorchlightGateway` exists (`READY`), the policy engine is attached to it in `ENFORCE` mode, and `list-policies` confirms all 5 rules reached `ACTIVE` against that gateway's real ARN. The running app does not yet call this gateway — see below. |
 | CloudWatch denial records | **Verified** | `PORCHLIGHT_CLOUDWATCH_LOG_GROUP` mirrors every policy decision to a real log group; a planted denial was fetched back with `aws logs get-log-events` |
 | AgentCore Memory backing agent conversation | **Verified** | Every agent role gets a real AgentCore Memory session (`PorchlightCommunityMemory-csMZJnAAJD`, `ACTIVE`); a live call was made and `list_events` independently confirmed the turn persisted. The structured record store correlation reads remains a JSON file, by design — see Limitations |
-| Deployed to AgentCore Runtime | **Not deployed** | `list-agent-runtimes` returns empty |
+| Deployed to AgentCore Runtime | **Verified live** | `arn:aws:bedrock-agentcore:us-west-2:899427357316:runtime/porchlight-cOsdTnHogs`, status READY. `agentcore invoke` against the real endpoint returned a correctly triaged case (urgency=red, script extracted) running live on Nova Pro inside the deployed ARM64 container |
 | Live model mode (Bedrock) | **Verified — full five-node run, zero errors** | Anthropic's model is blocked account-wide by `AccessDeniedException: INVALID_PAYMENT_INSTRUMENT` (an AWS Marketplace billing subscription issue, confirmed external — see below). With `PORCHLIGHT_MODEL_ID=us.amazon.nova-pro-v1:0` and nothing else changed, intake → corroboration → stage swarm → correlation → response completed live end to end: 5 drafts produced, 1 correctly held at the policy boundary pending approval. Same architecture, same policy layer, different Bedrock model — see below. |
 
 **The gateway row, precisely.** AgentCore Policy rejects a Cedar policy whose

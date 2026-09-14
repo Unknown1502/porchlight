@@ -176,9 +176,16 @@ names. A campaign forms and one decision appears.
 
 Judges should not have to discover this by testing:
 
-- **Deployed to AgentCore Runtime: no.** The Runtime contract (`GET /ping`,
-  `POST /invocations`) is served and verified inside the arm64 container, but
-  nothing is running in AWS.
+- **Deployed to AgentCore Runtime: yes, verified live.** The container is
+  running in AWS at
+  `arn:aws:bedrock-agentcore:us-west-2:899427357316:runtime/porchlight-cOsdTnHogs`,
+  status READY. `agentcore invoke` against the real endpoint returned a
+  correctly triaged case running live on Nova Pro, not a stub. One honest
+  limit: the endpoint takes AWS SigV4-signed requests (the `InvokeAgentRuntime`
+  API), not a plain URL — a judge can verify it with AWS credentials and the
+  `agentcore` CLI, but it is not a click-through "Live demo link" in the
+  Devpost sense. That field is left blank rather than pointing at a link that
+  would 403 in a browser.
 - **AgentCore Policy: engine ACTIVE, Gateway READY, all 5 Cedar rules loaded and
   ACTIVE against it.** `PorchlightGateway` exists with the policy engine
   attached in `ENFORCE` mode and a tool target (`PorchlightTools`) declaring the

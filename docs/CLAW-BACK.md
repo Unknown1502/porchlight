@@ -129,7 +129,18 @@ Then confirm by eye:
 Anything billable that was created for the demo:
 
 ```bash
-agentcore destroy                                    # runtime, ECR, CodeBuild, IAM — only if Runtime deploy is done
+# Runtime deployment, done for real on 2026-09-13/14 (not hypothetical —
+# see the Deployed to AgentCore Runtime row in README.md):
+agentcore destroy --agent porchlight        # deletes the runtime + its STM memory
+aws ecr delete-repository --region us-west-2 --repository-name bedrock-agentcore-porchlight --force
+aws codebuild delete-project --region us-west-2 --name bedrock-agentcore-porchlight-builder
+aws iam list-role-policies --role-name AmazonBedrockAgentCoreSDKRuntime-us-west-2-33fcef5dee \
+  --query 'PolicyNames' --output text | tr '\t' '\n' | while read p; do \
+  aws iam delete-role-policy --role-name AmazonBedrockAgentCoreSDKRuntime-us-west-2-33fcef5dee --policy-name "$p"; done
+aws iam delete-role --role-name AmazonBedrockAgentCoreSDKRuntime-us-west-2-33fcef5dee
+aws iam delete-role-policy --role-name AmazonBedrockAgentCoreSDKCodeBuild-us-west-2-33fcef5dee --policy-name CodeBuildExecutionPolicy
+aws iam delete-role --role-name AmazonBedrockAgentCoreSDKCodeBuild-us-west-2-33fcef5dee
+aws s3 rb s3://bedrock-agentcore-codebuild-sources-899427357316-us-west-2 --force
 
 # Gateway resources added 2026-09-13 (policies/README.md has the full story):
 aws bedrock-agentcore-control delete-gateway-target --region us-west-2 \
@@ -154,6 +165,16 @@ aws bedrock-agentcore-control delete-memory --region us-west-2 \
 ```
 
 Currently live in the author's account, all in `us-west-2`:
+- **AgentCore Runtime `porchlight-cOsdTnHogs`** — READY, verified with a real
+  `agentcore invoke` that returned a correctly triaged case running live on
+  Nova Pro
+- ECR repository `bedrock-agentcore-porchlight`, CodeBuild project
+  `bedrock-agentcore-porchlight-builder`, S3 bucket
+  `bedrock-agentcore-codebuild-sources-899427357316-us-west-2`
+- IAM roles `AmazonBedrockAgentCoreSDKRuntime-us-west-2-33fcef5dee`,
+  `AmazonBedrockAgentCoreSDKCodeBuild-us-west-2-33fcef5dee`
+- Runtime-scoped STM memory (created automatically by `agentcore deploy`,
+  deleted by `agentcore destroy` — separate from the app-level Memory below)
 - Policy engine `porchlight_policy-z8m1tlah9t` — ACTIVE, 5 policies loaded
 - Gateway `porchlightgateway-jtekgeso0t` (`PorchlightGateway`) — READY, policy engine attached in `ENFORCE` mode
 - Gateway target `EYJOVCNKSO` (`PorchlightTools`) — READY, backed by the stub Lambda below

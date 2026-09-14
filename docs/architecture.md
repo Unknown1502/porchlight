@@ -31,18 +31,26 @@ flowchart TD
         N1 --> N2 --> N3 --> N4 --> N5
     end
 
-    N2 -.reads.-> MEM[("Community memory<br/>JSON store today, AgentCore Memory intended<br/><i>actor = coalition, not resident</i>")]
+    N2 -.reads.-> MEM[("Community record store — JSON file<br/><i>deliberate: correlation needs synchronous reads across every record</i>")]
     N4 -.reads.-> MEM
     N5 --> MEM
+
+    N1 -.session.-> AMEM[("AgentCore Memory — real, per agent role<br/><i>conversation only, actor = coalition not resident</i>")]
+    N2 -.session.-> AMEM
+    N3 -.session.-> AMEM
+    N4 -.session.-> AMEM
+    N5 -.session.-> AMEM
 
     N4 --> CORR["correlation.py<br/><i>deterministic union-find</i><br/>hard indicators, then fenced fingerprint links"]
     CORR --> N4
 
-    N5 --> GATE{{"POLICY BOUNDARY<br/>Cedar rules, default-deny, audited<br/><i>in-process today; AgentCore Gateway intended</i>"}}
+    N5 --> GATE{{"POLICY BOUNDARY<br/>Cedar rules, default-deny, audited<br/><i>enforced in-process; loaded+ACTIVE at a real AgentCore Gateway, not yet in the tool-call path</i>"}}
     GATE -->|permit + approval token| OUT["SMS · flyer · complaint · partner brief"]
-    GATE -->|forbid| AUDIT[["Denial record<br/>P001 · P002 · P003 · P004 · P005"]]
+    GATE -->|forbid| AUDIT[["Denial record<br/>P001 · P002 · P003 · P004 · P005<br/>mirrored to real CloudWatch"]]
 
     OUT --> HUMAN(["Coordinator approves<br/><i>the only thing that surfaces</i>"])
+
+    N5 -.runs inside.-> RUNTIME["AgentCore Runtime — deployed, verified live<br/>arn:.../runtime/porchlight-cOsdTnHogs"]
 ```
 
 ## Why each node exists
@@ -100,12 +108,12 @@ other five.
 
 | Layer | Service | Status today |
 |---|---|---|
-| Agent runtime | AgentCore Runtime | Contract served and tested; **not deployed** (`list-agent-runtimes` is empty) |
-| Container | linux/arm64, :8080, non-root | **Verified** — built and run locally, `/ping` and `/invocations` answer |
-| Authorisation | AgentCore Policy (Cedar, default-deny) | Engine **created and ACTIVE** in a real account; the five rules **cannot load without a Gateway ARN** |
-| Tool boundary | AgentCore Gateway | **Not built.** This is the single blocker for the row above |
-| Long-term memory | AgentCore Memory | **Not wired** — the record store is a JSON file in every mode |
-| Tracing | AgentCore Observability (OTEL) | Not configured |
+| Agent runtime | AgentCore Runtime | **Deployed and verified live** — `arn:aws:bedrock-agentcore:us-west-2:899427357316:runtime/porchlight-cOsdTnHogs`, status READY, a real `agentcore invoke` returned a correctly triaged case |
+| Container | linux/arm64, :8080, non-root | **Verified** — built and run both locally and as the deployed image; `/ping` and `/invocations` answer |
+| Authorisation | AgentCore Policy (Cedar, default-deny) | Engine **ACTIVE**, a real Gateway **READY** with the engine attached in `ENFORCE` mode, all 5 rules **loaded and ACTIVE** against it. Tool calls do not yet route through it — see `policies/README.md` |
+| Tool boundary | AgentCore Gateway | **Built** — `PorchlightGateway`, READY, with a `PorchlightTools` target declaring the 15 tool actions the Cedar rules reference |
+| Long-term memory | AgentCore Memory | **Wired for agent conversation** — every agent role gets a real session, verified via `list_events`. The structured record store correlation reads stays a JSON file, deliberately (different access pattern) |
+| Tracing | AgentCore Observability (OTEL) | Enabled on the deployed Runtime; X-Ray trace destination configured (10-15 min propagation delay noted by the toolkit) |
 
 The README's deployment table carries the full detail, including why a Cedar
 policy that constrains an action must name a specific gateway.
