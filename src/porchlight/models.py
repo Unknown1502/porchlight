@@ -17,24 +17,39 @@ from .trace import Trace
 
 
 class _NoneListsToEmpty(BaseModel):
-    """Base for structured-output models with list fields.
+    """Base for structured-output models with defaulted fields.
 
-    Claude consistently emits ``[]`` for "no items". Amazon Nova Pro was
-    observed live (2026-09-13, see docs/CLAW-BACK.md) emitting ``null`` for the
-    same meaning instead, which fails validation on every ``list[...]`` field
-    rather than just the one it happened to null out first. Both mean the same
-    thing here, so the coercion lives once, at the base, rather than as a
-    per-field validator that only catches whichever field broke last.
+    Claude consistently emits ``[]`` for "no items" and ``false`` for "did not
+    happen". Amazon Nova Pro was observed live emitting ``null`` for both
+    instead: first on a list field (2026-09-13), then on a plain boolean field
+    with a real default — ``CampaignResult.newly_escalated`` — caught live on
+    the public App Runner demo on 2026-09-14, a case the earlier list-only
+    version of this fix did not cover. Both are "the model omitted an optional
+    judgement", which is exactly what a field's own default already means, so
+    the fix generalises to any *optional* field (``field.is_required()`` is
+    False — it has a default or a default_factory).
+
+    Deliberately scoped to non-required fields only. A first version of this
+    coerced ``null`` to ``[]`` for every list-typed field, required or not —
+    which would have turned a model failing to fill in
+    ``CampaignMatch.member_report_ids`` (required, no default: a campaign
+    claim is meaningless without its members) into a silently "successful"
+    empty-member campaign, exactly backwards from what this fix is for.
+    Required fields still fail loudly on ``null``, as they should.
     """
 
     @model_validator(mode="before")
     @classmethod
-    def _null_lists_become_empty(cls, data: Any) -> Any:
+    def _null_optional_fields_become_default(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
         for name, field in cls.model_fields.items():
-            if data.get(name) is None and get_origin(field.annotation) is list:
+            if data.get(name) is not None or field.is_required():
+                continue
+            if get_origin(field.annotation) is list:
                 data[name] = []
+            elif field.default is not None:
+                data[name] = field.default
         return data
 
 
@@ -94,7 +109,7 @@ class Indicators(_NoneListsToEmpty):
     case_or_reference_numbers: list[str] = Field(default_factory=list)
 
 
-class IntakeResult(BaseModel):
+class IntakeResult(_NoneListsToEmpty):
     impersonated_entity: str = Field(
         description="Who the scammer claimed to be, verbatim as claimed. Empty string if none."
     )
@@ -125,7 +140,7 @@ class IntakeResult(BaseModel):
 # --------------------------------------------------------------------------
 # Node 2 — corroboration
 # --------------------------------------------------------------------------
-class IndicatorFinding(BaseModel):
+class IndicatorFinding(_NoneListsToEmpty):
     indicator: str
     kind: Literal["url", "domain", "phone", "crypto", "upi", "acct", "email", "other"]
     source: str
@@ -174,7 +189,7 @@ class StageAssessment(_NoneListsToEmpty):
 # --------------------------------------------------------------------------
 # Node 4 — campaign correlation
 # --------------------------------------------------------------------------
-class CampaignMatch(BaseModel):
+class CampaignMatch(_NoneListsToEmpty):
     campaign_id: str
     campaign_label: str = Field(
         description=("Short human name for the crew, drawn from what they do rather than "
@@ -192,7 +207,7 @@ class CampaignMatch(BaseModel):
     why: str = Field(description="One sentence a coordinator can read aloud in a meeting.")
 
 
-class CampaignResult(BaseModel):
+class CampaignResult(_NoneListsToEmpty):
     is_campaign: bool
     match: Optional[CampaignMatch] = None
     newly_escalated: bool = Field(
@@ -211,7 +226,7 @@ class DraftKind(str, Enum):
     VICTIM_CHECKLIST = "victim_checklist"
 
 
-class Draft(BaseModel):
+class Draft(_NoneListsToEmpty):
     kind: DraftKind
     title: str
     body: str

@@ -397,8 +397,8 @@ succeeded on the first call — the `INVALID_PAYMENT_INSTRUMENT` block is
 specific to completing Anthropic's AWS Marketplace listing, not a restriction
 on the account's Bedrock access generally. Switching only
 `PORCHLIGHT_MODEL_ID` to `us.amazon.nova-pro-v1:0` and running the same
-`process_report()` pipeline with `PORCHLIGHT_OFFLINE=0` surfaced three real
-things, two of them latent bugs no test had ever reached:
+`process_report()` pipeline with `PORCHLIGHT_OFFLINE=0` surfaced four real
+things, three of them latent bugs no test had ever reached:
 
 1. A Nova structured-output call sometimes emits `null` for an empty list where
    Claude emits `[]`. Fixed at the model layer (`src/porchlight/models.py`,
@@ -414,8 +414,17 @@ things, two of them latent bugs no test had ever reached:
    of the structured tool call. Fixed with the same two-phase pattern already
    used for the corroboration node: ask that agent directly for the schema over
    its own finished conversation, rather than re-running the swarm.
+4. Caught only after deploying — Nova nulled a plain `bool` field with a
+   default (`CampaignResult.newly_escalated`), not just list fields, on the
+   public App Runner demo. The first version of the `_NoneListsToEmpty` fix
+   only covered lists; it now covers any field pydantic considers optional
+   (has a default), and deliberately *not* fields that are required — an
+   earlier draft of this fix would have coerced a missing
+   `CampaignMatch.member_report_ids` (required; a campaign claim is
+   meaningless without its members) into a silently "successful" empty-member
+   campaign, which is exactly backwards from what the fix is for.
 
-With those three fixes, `intake → corroboration → stage → correlation →
+With those four fixes, `intake → corroboration → stage → correlation →
 response` completed live, end to end, with `case.errors == []`: 5 drafts, 1
 correctly gated at the policy boundary pending a coordinator's approval. The
 Devpost rules for this hackathon name the Strands Agents SDK as the

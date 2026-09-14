@@ -162,17 +162,40 @@ aws bedrock-agentcore-control delete-policy-engine \
 # Memory resource added 2026-09-13:
 aws bedrock-agentcore-control delete-memory --region us-west-2 \
   --memory-id PorchlightCommunityMemory-csMZJnAAJD
+
+# Public live demo (App Runner) added 2026-09-14 — the URL in the Devpost
+# "Live demo link" field. Keep this running through judging (Sept 15 - Oct 8),
+# then tear down:
+aws apprunner delete-service --region us-west-2 \
+  --service-arn arn:aws:apprunner:us-west-2:899427357316:service/porchlight-live-demo/d480215192e44b9b9f366fbf71bc4cdc
+aws codebuild delete-project --region us-west-2 --name porchlight-apprunner-amd64-builder
+aws ecr batch-delete-image --region us-west-2 --repository-name bedrock-agentcore-porchlight \
+  --image-ids imageTag=amd64-apprunner
+aws iam delete-role-policy --role-name PorchlightAppRunnerInstanceRole --policy-name BedrockInvoke
+aws iam delete-role --role-name PorchlightAppRunnerInstanceRole
+aws iam detach-role-policy --role-name PorchlightAppRunnerECRAccessRole \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+aws iam delete-role --role-name PorchlightAppRunnerECRAccessRole
 ```
 
 Currently live in the author's account, all in `us-west-2`:
 - **AgentCore Runtime `porchlight-cOsdTnHogs`** — READY, verified with a real
   `agentcore invoke` that returned a correctly triaged case running live on
   Nova Pro
-- ECR repository `bedrock-agentcore-porchlight`, CodeBuild project
-  `bedrock-agentcore-porchlight-builder`, S3 bucket
+- **App Runner `porchlight-live-demo`** — RUNNING, public HTTPS, no AWS
+  credentials needed. This is the Devpost "Live demo link". Verified with a
+  real report submitted over the public internet; all five pipeline nodes
+  completed live with zero errors
+- ECR repository `bedrock-agentcore-porchlight` (two tags in active use: the
+  AgentCore Runtime's timestamped tag, and `amd64-apprunner` for App Runner —
+  same source, built for two different CPU architectures since AgentCore
+  Runtime requires arm64 and App Runner only supports x86_64), CodeBuild
+  projects `bedrock-agentcore-porchlight-builder` and
+  `porchlight-apprunner-amd64-builder`, S3 bucket
   `bedrock-agentcore-codebuild-sources-899427357316-us-west-2`
 - IAM roles `AmazonBedrockAgentCoreSDKRuntime-us-west-2-33fcef5dee`,
-  `AmazonBedrockAgentCoreSDKCodeBuild-us-west-2-33fcef5dee`
+  `AmazonBedrockAgentCoreSDKCodeBuild-us-west-2-33fcef5dee`,
+  `PorchlightAppRunnerInstanceRole`, `PorchlightAppRunnerECRAccessRole`
 - Runtime-scoped STM memory (created automatically by `agentcore deploy`,
   deleted by `agentcore destroy` — separate from the app-level Memory below)
 - Policy engine `porchlight_policy-z8m1tlah9t` — ACTIVE, 5 policies loaded

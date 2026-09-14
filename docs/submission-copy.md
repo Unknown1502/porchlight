@@ -180,12 +180,15 @@ Judges should not have to discover this by testing:
   running in AWS at
   `arn:aws:bedrock-agentcore:us-west-2:899427357316:runtime/porchlight-cOsdTnHogs`,
   status READY. `agentcore invoke` against the real endpoint returned a
-  correctly triaged case running live on Nova Pro, not a stub. One honest
-  limit: the endpoint takes AWS SigV4-signed requests (the `InvokeAgentRuntime`
-  API), not a plain URL — a judge can verify it with AWS credentials and the
-  `agentcore` CLI, but it is not a click-through "Live demo link" in the
-  Devpost sense. That field is left blank rather than pointing at a link that
-  would 403 in a browser.
+  correctly triaged case running live on Nova Pro, not a stub. This endpoint
+  takes AWS SigV4-signed requests (the `InvokeAgentRuntime` API), not a plain
+  URL, so it is not what the Devpost "Live demo link" points at.
+- **A separate, public, click-through live demo also exists**, on AWS App
+  Runner, running the same image, same live Bedrock/Nova Pro pipeline, no AWS
+  credentials needed to view it: the coordinator dashboard is a plain HTTPS
+  page. Verified end to end with a real report submitted over the public
+  internet, all five pipeline nodes completing live with zero errors. This is
+  what the Devpost "Live demo link" field points at.
 - **AgentCore Policy: engine ACTIVE, Gateway READY, all 5 Cedar rules loaded and
   ACTIVE against it.** `PorchlightGateway` exists with the policy engine
   attached in `ENFORCE` mode and a tool target (`PorchlightTools`) declaring the
